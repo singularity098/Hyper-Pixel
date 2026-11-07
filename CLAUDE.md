@@ -7,6 +7,7 @@ up to 4800 dpi). Defaults are tuned for it.
 ## Workflow rules
 - **Always commit and push directly to `main`** (owner's explicit choice). No PRs unless asked.
 - Keep this file current: update it whenever architecture, conventions or milestones change.
+- Toolchain is pinned in `rust-toolchain.toml`; bump it deliberately (and fix new lints).
 - Before pushing: `cargo fmt --all`, `cargo clippy --workspace --all-targets -- -D warnings`,
   `cargo test --workspace --release`.
 - **Pure Rust dependencies only** (owner's choice): no C/C++ libraries linked at build time.

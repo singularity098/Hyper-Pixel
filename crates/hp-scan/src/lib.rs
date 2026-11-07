@@ -298,8 +298,10 @@ pub fn raw_to_image(
             let v: Vec<u16> = data
                 .get(..px * 2)
                 .ok_or_else(err)?
-                .chunks_exact(2)
-                .map(|c| u16::from_ne_bytes([c[0], c[1]]))
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|c| u16::from_ne_bytes(*c))
                 .collect();
             DynamicImage::ImageLuma16(
                 image::ImageBuffer::from_raw(width, height, v).ok_or_else(err)?,
@@ -309,8 +311,10 @@ pub fn raw_to_image(
             let v: Vec<u16> = data
                 .get(..px * 6)
                 .ok_or_else(err)?
-                .chunks_exact(2)
-                .map(|c| u16::from_ne_bytes([c[0], c[1]]))
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|c| u16::from_ne_bytes(*c))
                 .collect();
             DynamicImage::ImageRgb16(
                 image::ImageBuffer::from_raw(width, height, v).ok_or_else(err)?,
