@@ -45,6 +45,10 @@ pub struct Settings {
     pub high_bit_depth: bool,
     pub name_pattern: String,
     pub inset_mm: f64,
+    /// Show a magnifier loupe while placing crop-box corners.
+    pub magnifier: bool,
+    /// Loupe magnification relative to the on-screen preview.
+    pub loupe_zoom: f64,
 }
 
 impl Default for Settings {
@@ -77,6 +81,8 @@ impl Default for Settings {
             high_bit_depth: false,
             name_pattern: "{date}_{n}".into(),
             inset_mm: 0.4,
+            magnifier: true,
+            loupe_zoom: 4.0,
         }
     }
 }
