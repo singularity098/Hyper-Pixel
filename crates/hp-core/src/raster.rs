@@ -14,7 +14,11 @@ pub struct Plane {
 
 impl Plane {
     pub fn new(w: usize, h: usize) -> Self {
-        Self { w, h, data: vec![0.0; w * h] }
+        Self {
+            w,
+            h,
+            data: vec![0.0; w * h],
+        }
     }
     #[inline]
     pub fn at(&self, x: usize, y: usize) -> f32 {
@@ -45,7 +49,9 @@ impl Plane {
             return self.clone();
         }
         let r = (sigma * 3.0).ceil() as isize;
-        let k: Vec<f32> = (-r..=r).map(|i| (-(i * i) as f32 / (2.0 * sigma * sigma)).exp()).collect();
+        let k: Vec<f32> = (-r..=r)
+            .map(|i| (-(i * i) as f32 / (2.0 * sigma * sigma)).exp())
+            .collect();
         let ks: f32 = k.iter().sum();
         let k: Vec<f32> = k.iter().map(|v| v / ks).collect();
         let (w, h) = (self.w, self.h);
@@ -85,8 +91,10 @@ impl Plane {
                 let xm = x.saturating_sub(1);
                 let xp = (x + 1).min(w - 1);
                 let g = |xx: usize, yy: usize| self.data[yy * w + xx];
-                let gx = (g(xp, ym) + 2.0 * g(xp, y) + g(xp, yp)) - (g(xm, ym) + 2.0 * g(xm, y) + g(xm, yp));
-                let gy = (g(xm, yp) + 2.0 * g(x, yp) + g(xp, yp)) - (g(xm, ym) + 2.0 * g(x, ym) + g(xp, ym));
+                let gx = (g(xp, ym) + 2.0 * g(xp, y) + g(xp, yp))
+                    - (g(xm, ym) + 2.0 * g(xm, y) + g(xm, yp));
+                let gy = (g(xm, yp) + 2.0 * g(x, yp) + g(xp, yp))
+                    - (g(xm, ym) + 2.0 * g(x, ym) + g(xp, ym));
                 *o = (gx * gx + gy * gy).sqrt() / 8.0;
             }
         });
@@ -103,12 +111,20 @@ pub struct Lab {
 
 #[inline]
 fn srgb_to_linear(c: f32) -> f32 {
-    if c <= 0.04045 { c / 12.92 } else { ((c + 0.055) / 1.055).powf(2.4) }
+    if c <= 0.04045 {
+        c / 12.92
+    } else {
+        ((c + 0.055) / 1.055).powf(2.4)
+    }
 }
 
 #[inline]
 fn lab_f(t: f32) -> f32 {
-    if t > 0.008856 { t.cbrt() } else { 7.787 * t + 16.0 / 116.0 }
+    if t > 0.008856 {
+        t.cbrt()
+    } else {
+        7.787 * t + 16.0 / 116.0
+    }
 }
 
 /// sRGB (0..1) to CIE Lab (D65).
@@ -160,7 +176,11 @@ pub struct Mask {
 
 impl Mask {
     pub fn new(w: usize, h: usize) -> Self {
-        Self { w, h, data: vec![false; w * h] }
+        Self {
+            w,
+            h,
+            data: vec![false; w * h],
+        }
     }
     #[inline]
     pub fn at(&self, x: usize, y: usize) -> bool {
@@ -175,7 +195,11 @@ impl Mask {
     fn distance_to(&self, target: bool, outside: bool) -> Vec<f32> {
         let (w, h) = (self.w, self.h);
         let inf = f32::MAX / 4.0;
-        let mut d: Vec<f32> = self.data.iter().map(|&v| if v == target { 0.0 } else { inf }).collect();
+        let mut d: Vec<f32> = self
+            .data
+            .iter()
+            .map(|&v| if v == target { 0.0 } else { inf })
+            .collect();
         let border = if outside == target { 1.0 } else { inf };
         let get = |d: &Vec<f32>, x: isize, y: isize| -> f32 {
             if x < 0 || y < 0 || x >= w as isize || y >= h as isize {
@@ -221,7 +245,11 @@ impl Mask {
             return self.clone();
         }
         let d = self.distance_to(true, false);
-        Mask { w: self.w, h: self.h, data: d.iter().map(|&v| v <= r).collect() }
+        Mask {
+            w: self.w,
+            h: self.h,
+            data: d.iter().map(|&v| v <= r).collect(),
+        }
     }
 
     pub fn erode(&self, r: f32) -> Mask {
@@ -230,7 +258,11 @@ impl Mask {
         }
         // Outside counts as "set" for erosion so objects touching the border are not eaten.
         let d = self.distance_to(false, true);
-        Mask { w: self.w, h: self.h, data: d.iter().map(|&v| v > r).collect() }
+        Mask {
+            w: self.w,
+            h: self.h,
+            data: d.iter().map(|&v| v > r).collect(),
+        }
     }
 
     pub fn close(&self, r: f32) -> Mask {
@@ -274,7 +306,11 @@ impl Mask {
                 push(i + w, &mut outside, &mut stack);
             }
         }
-        Mask { w, h, data: outside.iter().map(|o| !o).collect() }
+        Mask {
+            w,
+            h,
+            data: outside.iter().map(|o| !o).collect(),
+        }
     }
 
     /// 8-connected component labelling. Returns per-pixel labels (0 = background) and the
@@ -368,7 +404,12 @@ mod tests {
 }
 
 /// Draw rotated rectangle outlines onto an RGB image (debug/visualisation helper).
-pub fn draw_rects(img: &mut image::RgbImage, rects: &[crate::geom::RotatedRect], color: [u8; 3], thickness: u32) {
+pub fn draw_rects(
+    img: &mut image::RgbImage,
+    rects: &[crate::geom::RotatedRect],
+    color: [u8; 3],
+    thickness: u32,
+) {
     let (w, h) = (img.width() as i64, img.height() as i64);
     for r in rects {
         let c = r.corners();

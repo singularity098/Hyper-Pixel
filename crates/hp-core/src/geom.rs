@@ -52,7 +52,13 @@ pub struct RotatedRect {
 
 impl RotatedRect {
     pub fn new(cx: f64, cy: f64, w: f64, h: f64, angle: f64) -> Self {
-        Self { cx, cy, w, h, angle }
+        Self {
+            cx,
+            cy,
+            w,
+            h,
+            angle,
+        }
     }
 
     /// Unit vectors of the rect's local X and Y axes.
@@ -112,11 +118,21 @@ impl RotatedRect {
     }
 
     pub fn scaled(&self, s: f64) -> Self {
-        Self { cx: self.cx * s, cy: self.cy * s, w: self.w * s, h: self.h * s, angle: self.angle }
+        Self {
+            cx: self.cx * s,
+            cy: self.cy * s,
+            w: self.w * s,
+            h: self.h * s,
+            angle: self.angle,
+        }
     }
 
     pub fn translated(&self, dx: f64, dy: f64) -> Self {
-        Self { cx: self.cx + dx, cy: self.cy + dy, ..*self }
+        Self {
+            cx: self.cx + dx,
+            cy: self.cy + dy,
+            ..*self
+        }
     }
 
     /// Does the rect contain point `p`?
@@ -288,7 +304,11 @@ pub struct Line {
 
 /// Total-least-squares line fit with iterative outlier rejection.
 /// Returns the line and the indices of inliers.
-pub fn fit_line_robust(points: &[Point], iterations: usize, min_keep: f64) -> Option<(Line, Vec<usize>)> {
+pub fn fit_line_robust(
+    points: &[Point],
+    iterations: usize,
+    min_keep: f64,
+) -> Option<(Line, Vec<usize>)> {
     if points.len() < 2 {
         return None;
     }
@@ -296,7 +316,12 @@ pub fn fit_line_robust(points: &[Point], iterations: usize, min_keep: f64) -> Op
     let mut line = fit_line_tls(points, &idx)?;
     for _ in 0..iterations {
         let mut res: Vec<(usize, f64)> = (0..points.len())
-            .map(|i| (i, (line.nx * points[i].x + line.ny * points[i].y - line.d).abs()))
+            .map(|i| {
+                (
+                    i,
+                    (line.nx * points[i].x + line.ny * points[i].y - line.d).abs(),
+                )
+            })
             .collect();
         let mut sorted: Vec<f64> = res.iter().map(|r| r.1).collect();
         sorted.sort_by(f64::total_cmp);
@@ -305,9 +330,16 @@ pub fn fit_line_robust(points: &[Point], iterations: usize, min_keep: f64) -> Op
         res.retain(|r| r.1 <= thr);
         if (res.len() as f64) < min_keep * points.len() as f64 {
             // Too aggressive: keep the best `min_keep` fraction instead.
-            let k = ((min_keep * points.len() as f64).ceil() as usize).max(2).min(points.len());
+            let k = ((min_keep * points.len() as f64).ceil() as usize)
+                .max(2)
+                .min(points.len());
             let mut all: Vec<(usize, f64)> = (0..points.len())
-                .map(|i| (i, (line.nx * points[i].x + line.ny * points[i].y - line.d).abs()))
+                .map(|i| {
+                    (
+                        i,
+                        (line.nx * points[i].x + line.ny * points[i].y - line.d).abs(),
+                    )
+                })
                 .collect();
             all.sort_by(|a, b| a.1.total_cmp(&b.1));
             res = all.into_iter().take(k).collect();
@@ -346,7 +378,11 @@ fn fit_line_tls(points: &[Point], idx: &[usize]) -> Option<Line> {
     let theta = 0.5 * (2.0 * sxy).atan2(sxx - syy);
     let (s, c) = theta.sin_cos();
     let (nx, ny) = (-s, c);
-    Some(Line { nx, ny, d: nx * mx + ny * my })
+    Some(Line {
+        nx,
+        ny,
+        d: nx * mx + ny * my,
+    })
 }
 
 #[cfg(test)]
@@ -384,7 +420,9 @@ mod tests {
 
     #[test]
     fn robust_line_ignores_outliers() {
-        let mut pts: Vec<Point> = (0..50).map(|i| Point::new(i as f64, 0.5 * i as f64 + 3.0)).collect();
+        let mut pts: Vec<Point> = (0..50)
+            .map(|i| Point::new(i as f64, 0.5 * i as f64 + 3.0))
+            .collect();
         pts.push(Point::new(10.0, 40.0));
         pts.push(Point::new(20.0, -30.0));
         let (l, inl) = fit_line_robust(&pts, 4, 0.5).unwrap();

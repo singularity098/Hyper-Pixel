@@ -50,7 +50,13 @@ pub struct DetectParams {
 
 impl Default for DetectParams {
     fn default() -> Self {
-        Self { work_dpi: 100.0, background: BackgroundHint::Auto, min_size_mm: 20.0, sensitivity: 1.0, split_touching: true }
+        Self {
+            work_dpi: 100.0,
+            background: BackgroundHint::Auto,
+            min_size_mm: 20.0,
+            sensitivity: 1.0,
+            split_touching: true,
+        }
     }
 }
 
@@ -81,18 +87,23 @@ pub struct ScanGeometry {
 
 impl ScanGeometry {
     pub fn new(dpi: f64) -> Self {
-        Self { dpi, origin_mm: (0.0, 0.0) }
+        Self {
+            dpi,
+            origin_mm: (0.0, 0.0),
+        }
     }
     pub fn px_per_mm(&self) -> f64 {
         self.dpi / 25.4
     }
     /// Convert a rect in this image's pixel coordinates to bed mm.
     pub fn px_to_mm(&self, r: &RotatedRect) -> RotatedRect {
-        r.scaled(1.0 / self.px_per_mm()).translated(self.origin_mm.0, self.origin_mm.1)
+        r.scaled(1.0 / self.px_per_mm())
+            .translated(self.origin_mm.0, self.origin_mm.1)
     }
     /// Convert a rect in bed mm to this image's pixel coordinates.
     pub fn mm_to_px(&self, r: &RotatedRect) -> RotatedRect {
-        r.translated(-self.origin_mm.0, -self.origin_mm.1).scaled(self.px_per_mm())
+        r.translated(-self.origin_mm.0, -self.origin_mm.1)
+            .scaled(self.px_per_mm())
     }
 }
 
@@ -113,7 +124,11 @@ pub fn detect_photos(img: &DynamicImage, geo: ScanGeometry, params: &DetectParam
     let work_dpi = geo.dpi * scale;
     let px_per_mm = work_dpi / 25.4;
     let lab = lab_planes(img, scale);
-    let lab = Lab { l: lab.l.blur(0.7), a: lab.a.blur(0.7), b: lab.b.blur(0.7) };
+    let lab = Lab {
+        l: lab.l.blur(0.7),
+        a: lab.a.blur(0.7),
+        b: lab.b.blur(0.7),
+    };
     let (w, h) = (lab.l.w, lab.l.h);
     if w < 16 || h < 16 {
         return DetectReport::default();
@@ -132,7 +147,9 @@ pub fn detect_photos(img: &DynamicImage, geo: ScanGeometry, params: &DetectParam
             }
         }
     }
-    let med = |p: &Plane, idx: &[usize]| percentile(&idx.iter().map(|&i| p.data[i]).collect::<Vec<_>>(), 0.5);
+    let med = |p: &Plane, idx: &[usize]| {
+        percentile(&idx.iter().map(|&i| p.data[i]).collect::<Vec<_>>(), 0.5)
+    };
     let (mut bl, mut ba, mut bb) = (med(&lab.l, &ring), med(&lab.a, &ring), med(&lab.b, &ring));
     match params.background {
         // If the hint disagrees strongly with the ring (photos covering most of the
@@ -159,10 +176,25 @@ pub fn detect_photos(img: &DynamicImage, geo: ScanGeometry, params: &DetectParam
     };
     let ring_d: Vec<f32> = ring.iter().map(|&i| de(i, bl, ba, bb)).collect();
     let mad = percentile(&ring_d, 0.5);
-    let ring_bg: Vec<usize> =
-        ring.iter().zip(&ring_d).filter(|(_, d)| **d <= (mad * 3.0).max(2.0)).map(|(i, _)| *i).collect();
-    let ring_bg = if ring_bg.len() > 20 { ring_bg } else { ring.clone() };
-    let noise = percentile(&ring_bg.iter().map(|&i| de(i, bl, ba, bb)).collect::<Vec<_>>(), 0.9).max(0.8);
+    let ring_bg: Vec<usize> = ring
+        .iter()
+        .zip(&ring_d)
+        .filter(|(_, d)| **d <= (mad * 3.0).max(2.0))
+        .map(|(i, _)| *i)
+        .collect();
+    let ring_bg = if ring_bg.len() > 20 {
+        ring_bg
+    } else {
+        ring.clone()
+    };
+    let noise = percentile(
+        &ring_bg
+            .iter()
+            .map(|&i| de(i, bl, ba, bb))
+            .collect::<Vec<_>>(),
+        0.9,
+    )
+    .max(0.8);
 
     let sens = params.sensitivity.clamp(0.25, 4.0) as f32;
     let threshold = ((noise * 3.0).max(4.0)) / sens;
@@ -183,7 +215,12 @@ pub fn detect_photos(img: &DynamicImage, geo: ScanGeometry, params: &DetectParam
 
     // --- Background surface from pixels well away from the foreground -----------------
     let excl = fg1.dilate((3.0 * px_per_mm) as f32);
-    let surface = background_surface(&lab, &excl, (bl, ba, bb), (12.0 * px_per_mm).max(8.0) as usize);
+    let surface = background_surface(
+        &lab,
+        &excl,
+        (bl, ba, bb),
+        (12.0 * px_per_mm).max(8.0) as usize,
+    );
     for i in 0..w * h {
         let dl = lab.l.data[i] - surface.l.data[i];
         let da = lab.a.data[i] - surface.a.data[i];
@@ -216,7 +253,8 @@ pub fn detect_photos(img: &DynamicImage, geo: ScanGeometry, params: &DetectParam
     let mut kept: Vec<(RotatedRect, f64)> = Vec::new();
     for (r, c) in found {
         let dup = kept.iter().any(|(k, _)| {
-            let inter = crate::geom::polygon_area(&crate::geom::clip_convex(&r.corners(), &k.corners()));
+            let inter =
+                crate::geom::polygon_area(&crate::geom::clip_convex(&r.corners(), &k.corners()));
             inter > 0.6 * r.area()
         });
         if !dup {
@@ -226,17 +264,31 @@ pub fn detect_photos(img: &DynamicImage, geo: ScanGeometry, params: &DetectParam
     // Reading order: top-to-bottom rows, then left-to-right.
     let row_tol = 15.0 * px_per_mm;
     kept.sort_by(|a, b| {
-        if (a.0.cy - b.0.cy).abs() < row_tol { a.0.cx.total_cmp(&b.0.cx) } else { a.0.cy.total_cmp(&b.0.cy) }
+        if (a.0.cy - b.0.cy).abs() < row_tol {
+            a.0.cx.total_cmp(&b.0.cx)
+        } else {
+            a.0.cy.total_cmp(&b.0.cy)
+        }
     });
 
-    let work_geo = ScanGeometry { dpi: work_dpi, origin_mm: geo.origin_mm };
+    let work_geo = ScanGeometry {
+        dpi: work_dpi,
+        origin_mm: geo.origin_mm,
+    };
     // The working image may be very slightly rescaled due to rounding; correct for it.
     let sx = img.width() as f64 * scale / w as f64;
     let photos = kept
         .into_iter()
-        .map(|(r, c)| Detection { rect: work_geo.px_to_mm(&r.scaled(sx)), confidence: c })
+        .map(|(r, c)| Detection {
+            rect: work_geo.px_to_mm(&r.scaled(sx)),
+            confidence: c,
+        })
         .collect();
-    DetectReport { photos, background_l: bl as f64, dark_background: bl < 50.0 }
+    DetectReport {
+        photos,
+        background_l: bl as f64,
+        dark_background: bl < 50.0,
+    }
 }
 
 fn build_mask(dist: &Plane, grad: &Plane, t: f32, gt: f32, close_r: f32, open_r: f32) -> Mask {
@@ -272,12 +324,18 @@ fn background_surface(lab: &Lab, excl: &Mask, fallback: (f32, f32, f32), cell: u
     let min_cnt = (cell * cell / 4).max(1);
     let mut val: Vec<Option<[f32; 3]>> = (0..gw * gh)
         .map(|g| {
-            (cnt[g] >= min_cnt)
-                .then(|| [(sum[g][0] / cnt[g] as f64) as f32, (sum[g][1] / cnt[g] as f64) as f32, (sum[g][2] / cnt[g] as f64) as f32])
+            (cnt[g] >= min_cnt).then(|| {
+                [
+                    (sum[g][0] / cnt[g] as f64) as f32,
+                    (sum[g][1] / cnt[g] as f64) as f32,
+                    (sum[g][2] / cnt[g] as f64) as f32,
+                ]
+            })
         })
         .collect();
     if val.iter().all(|v| v.is_none()) {
-        val.iter_mut().for_each(|v| *v = Some([fallback.0, fallback.1, fallback.2]));
+        val.iter_mut()
+            .for_each(|v| *v = Some([fallback.0, fallback.1, fallback.2]));
     }
     // Diffuse known values into unknown cells.
     loop {
@@ -313,8 +371,15 @@ fn background_surface(lab: &Lab, excl: &Mask, fallback: (f32, f32, f32), cell: u
             break;
         }
     }
-    let grid: Vec<[f32; 3]> = val.into_iter().map(|v| v.unwrap_or([fallback.0, fallback.1, fallback.2])).collect();
-    let mut out = Lab { l: Plane::new(w, h), a: Plane::new(w, h), b: Plane::new(w, h) };
+    let grid: Vec<[f32; 3]> = val
+        .into_iter()
+        .map(|v| v.unwrap_or([fallback.0, fallback.1, fallback.2]))
+        .collect();
+    let mut out = Lab {
+        l: Plane::new(w, h),
+        a: Plane::new(w, h),
+        b: Plane::new(w, h),
+    };
     for y in 0..h {
         let fy = ((y as f64 + 0.5) / cell as f64 - 0.5).clamp(0.0, (gh - 1) as f64);
         let y0 = fy.floor() as usize;
@@ -360,14 +425,21 @@ fn boundary_points(ctx: &Ctx, comp: &[usize]) -> Vec<Point> {
         .flat_map(|&i| {
             // Use pixel corners so the hull encloses whole pixels.
             let (x, y) = ((i % w) as f64, (i / w) as f64);
-            [Point::new(x, y), Point::new(x + 1.0, y), Point::new(x, y + 1.0), Point::new(x + 1.0, y + 1.0)]
+            [
+                Point::new(x, y),
+                Point::new(x + 1.0, y),
+                Point::new(x, y + 1.0),
+                Point::new(x + 1.0, y + 1.0),
+            ]
         })
         .collect()
 }
 
 fn process_component(ctx: &Ctx, comp: &[usize], depth: usize, out: &mut Vec<(RotatedRect, f64)>) {
     let pts = boundary_points(ctx, comp);
-    let Some(rect) = min_area_rect(&pts) else { return };
+    let Some(rect) = min_area_rect(&pts) else {
+        return;
+    };
     if rect.w.min(rect.h) < ctx.min_side_px {
         return;
     }
@@ -394,7 +466,8 @@ fn process_component(ctx: &Ctx, comp: &[usize], depth: usize, out: &mut Vec<(Rot
     }
 
     let refined = refine_rect(ctx, &rect, &pts).unwrap_or(rect);
-    let conf = (rectangularity.clamp(0.0, 1.0) * if refined == rect { 0.8 } else { 1.0 }).clamp(0.0, 1.0);
+    let conf =
+        (rectangularity.clamp(0.0, 1.0) * if refined == rect { 0.8 } else { 1.0 }).clamp(0.0, 1.0);
     out.push((refined, conf));
 }
 
@@ -423,9 +496,15 @@ fn try_split(ctx: &Ctx, comp: &[usize]) -> Option<Vec<Vec<usize>>> {
     let min_core = (ctx.min_side_px * ctx.min_side_px * 0.05).max(16.0) as usize;
     let mut r = 1.5f32;
     while r < maxd * 0.8 {
-        let core = Mask { w: bw, h: bh, data: dt.iter().map(|&d| d > r).collect() };
+        let core = Mask {
+            w: bw,
+            h: bh,
+            data: dt.iter().map(|&d| d > r).collect(),
+        };
         let (labels, cores) = core.components();
-        let big: Vec<usize> = (0..cores.len()).filter(|&k| cores[k].len() >= min_core).collect();
+        let big: Vec<usize> = (0..cores.len())
+            .filter(|&k| cores[k].len() >= min_core)
+            .collect();
         if big.len() >= 2 {
             // Multi-source BFS from the big cores, restricted to the blob.
             let mut owner = vec![u32::MAX; bw * bh];
@@ -501,7 +580,9 @@ fn refine_rect(ctx: &Ctx, rect: &RotatedRect, hull_pts: &[Point]) -> Option<Rota
                 continue;
             }
             // Derivative (rise when moving inward).
-            let deriv: Vec<f32> = (1..prof.len() - 1).map(|i| (prof[i + 1] - prof[i - 1]) / (2.0 * step as f32)).collect();
+            let deriv: Vec<f32> = (1..prof.len() - 1)
+                .map(|i| (prof[i + 1] - prof[i - 1]) / (2.0 * step as f32))
+                .collect();
             let maxd = deriv.iter().cloned().fold(0.0f32, f32::max);
             if maxd < ctx.threshold * 0.15 {
                 continue;
@@ -517,7 +598,11 @@ fn refine_rect(ctx: &Ctx, rect: &RotatedRect, hull_pts: &[Point]) -> Option<Rota
             let Some(i) = best else { continue };
             let (a, b, cc) = (deriv[i - 1] as f64, deriv[i] as f64, deriv[i + 1] as f64);
             let den = a - 2.0 * b + cc;
-            let frac = if den.abs() > 1e-9 { (0.5 * (a - cc) / den).clamp(-0.5, 0.5) } else { 0.0 };
+            let frac = if den.abs() > 1e-9 {
+                (0.5 * (a - cc) / den).clamp(-0.5, 0.5)
+            } else {
+                0.0
+            };
             // deriv index i corresponds to prof index i+1.
             let d = search - ((i + 1) as f64 + frac) * step;
             pts.push(Point::new(base.x + n.x * d, base.y + n.y * d));
@@ -540,7 +625,11 @@ fn refine_rect(ctx: &Ctx, rect: &RotatedRect, hull_pts: &[Point]) -> Option<Rota
         };
         // Line direction is perpendicular to its normal.
         let dir_angle = (-line.nx).atan2(line.ny).to_degrees();
-        let base = if si % 2 == 0 { rect.angle } else { rect.angle + 90.0 };
+        let base = if si % 2 == 0 {
+            rect.angle
+        } else {
+            rect.angle + 90.0
+        };
         let mut dlt = (dir_angle - base).rem_euclid(180.0);
         if dlt > 90.0 {
             dlt -= 180.0;
@@ -570,10 +659,22 @@ fn refine_rect(ctx: &Ctx, rect: &RotatedRect, hull_pts: &[Point]) -> Option<Rota
     let hv: Vec<f64> = hull_pts.iter().map(proj_v).collect();
     let fmin = |v: &[f64]| v.iter().cloned().fold(f64::MAX, f64::min);
     let fmax = |v: &[f64]| v.iter().cloned().fold(f64::MIN, f64::max);
-    let v_min = fits[0].as_ref().map(|p| med(p.iter().map(proj_v).collect())).unwrap_or_else(|| fmin(&hv));
-    let u_max = fits[1].as_ref().map(|p| med(p.iter().map(proj_u).collect())).unwrap_or_else(|| fmax(&hu));
-    let v_max = fits[2].as_ref().map(|p| med(p.iter().map(proj_v).collect())).unwrap_or_else(|| fmax(&hv));
-    let u_min = fits[3].as_ref().map(|p| med(p.iter().map(proj_u).collect())).unwrap_or_else(|| fmin(&hu));
+    let v_min = fits[0]
+        .as_ref()
+        .map(|p| med(p.iter().map(proj_v).collect()))
+        .unwrap_or_else(|| fmin(&hv));
+    let u_max = fits[1]
+        .as_ref()
+        .map(|p| med(p.iter().map(proj_u).collect()))
+        .unwrap_or_else(|| fmax(&hu));
+    let v_max = fits[2]
+        .as_ref()
+        .map(|p| med(p.iter().map(proj_v).collect()))
+        .unwrap_or_else(|| fmax(&hv));
+    let u_min = fits[3]
+        .as_ref()
+        .map(|p| med(p.iter().map(proj_u).collect()))
+        .unwrap_or_else(|| fmin(&hu));
     if u_max <= u_min || v_max <= v_min {
         return None;
     }
@@ -599,8 +700,17 @@ mod tests {
         let mut total_iou = 0.0;
         let mut n = 0;
         for seed in 0..6u64 {
-            let scene = render_scene(&SceneParams { seed, dark_background: true, dpi: 100.0, ..Default::default() });
-            let rep = detect_photos(&scene.image, ScanGeometry::new(scene.dpi), &DetectParams::default());
+            let scene = render_scene(&SceneParams {
+                seed,
+                dark_background: true,
+                dpi: 100.0,
+                ..Default::default()
+            });
+            let rep = detect_photos(
+                &scene.image,
+                ScanGeometry::new(scene.dpi),
+                &DetectParams::default(),
+            );
             assert_eq!(rep.photos.len(), scene.truth.len(), "seed {seed}");
             for t in &scene.truth {
                 let best = rep.photos.iter().map(|d| d.rect.iou(t)).fold(0.0, f64::max);
@@ -615,8 +725,17 @@ mod tests {
     #[test]
     fn detects_synthetic_photos_light_background() {
         for seed in 100..104u64 {
-            let scene = render_scene(&SceneParams { seed, dark_background: false, dpi: 100.0, ..Default::default() });
-            let rep = detect_photos(&scene.image, ScanGeometry::new(scene.dpi), &DetectParams::default());
+            let scene = render_scene(&SceneParams {
+                seed,
+                dark_background: false,
+                dpi: 100.0,
+                ..Default::default()
+            });
+            let rep = detect_photos(
+                &scene.image,
+                ScanGeometry::new(scene.dpi),
+                &DetectParams::default(),
+            );
             assert_eq!(rep.photos.len(), scene.truth.len(), "seed {seed}");
         }
     }

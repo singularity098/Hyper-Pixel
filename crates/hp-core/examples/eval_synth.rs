@@ -12,9 +12,23 @@ fn main() {
     let mut ev = Evaluator::new();
     let t0 = std::time::Instant::now();
     for seed in 0..n {
-        let dark = match bg.as_str() { "dark" => true, "light" => false, _ => seed % 2 == 0 };
-        let scene = render_scene(&SceneParams { seed: seed + 1000, dpi, dark_background: dark, min_gap_mm: gap, ..Default::default() });
-        let rep = detect_photos(&scene.image, ScanGeometry::new(dpi), &DetectParams::default());
+        let dark = match bg.as_str() {
+            "dark" => true,
+            "light" => false,
+            _ => seed % 2 == 0,
+        };
+        let scene = render_scene(&SceneParams {
+            seed: seed + 1000,
+            dpi,
+            dark_background: dark,
+            min_gap_mm: gap,
+            ..Default::default()
+        });
+        let rep = detect_photos(
+            &scene.image,
+            ScanGeometry::new(dpi),
+            &DetectParams::default(),
+        );
         let det: Vec<_> = rep.photos.iter().map(|d| d.rect).collect();
         let before = ev.stats().perfect_scenes;
         ev.add(&scene.truth, &det);
@@ -31,5 +45,8 @@ fn main() {
         }
     }
     println!("{}", serde_json::to_string_pretty(ev.stats()).unwrap());
-    println!("time per scene (incl. render): {:.1} ms", t0.elapsed().as_secs_f64() * 1000.0 / n as f64);
+    println!(
+        "time per scene (incl. render): {:.1} ms",
+        t0.elapsed().as_secs_f64() * 1000.0 / n as f64
+    );
 }

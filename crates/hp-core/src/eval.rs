@@ -53,7 +53,11 @@ pub fn corner_error(a: &RotatedRect, b: &RotatedRect) -> f64 {
     let ca = a.corners();
     let cb = b.corners();
     (0..4)
-        .map(|shift| (0..4).map(|k| ca[k].dist(cb[(k + shift) % 4])).fold(0.0, f64::max))
+        .map(|shift| {
+            (0..4)
+                .map(|k| ca[k].dist(cb[(k + shift) % 4]))
+                .fold(0.0, f64::max)
+        })
         .fold(f64::MAX, f64::min)
 }
 
@@ -67,7 +71,13 @@ pub struct Evaluator {
 
 impl Evaluator {
     pub fn new() -> Self {
-        Self { stats: EvalStats { min_iou: 1.0, ..Default::default() }, ..Default::default() }
+        Self {
+            stats: EvalStats {
+                min_iou: 1.0,
+                ..Default::default()
+            },
+            ..Default::default()
+        }
     }
 
     pub fn add(&mut self, truth: &[RotatedRect], det: &[RotatedRect]) {

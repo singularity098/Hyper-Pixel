@@ -4,10 +4,15 @@
 pub mod color;
 pub mod crop;
 pub mod detect;
+pub mod document;
 pub mod eval;
+pub mod export;
 pub mod geom;
+pub mod pdf;
 pub mod raster;
 pub mod synth;
 
-pub use detect::{BackgroundHint, DetectParams, DetectReport, Detection, ScanGeometry, detect_photos};
+pub use detect::{
+    BackgroundHint, DetectParams, DetectReport, Detection, ScanGeometry, detect_photos,
+};
 pub use geom::{Point, RotatedRect};

@@ -24,8 +24,13 @@ pub enum ColorPreset {
 }
 
 impl ColorPreset {
-    pub const ALL: [ColorPreset; 5] =
-        [ColorPreset::None, ColorPreset::Auto, ColorPreset::RestoreFaded, ColorPreset::Vivid, ColorPreset::Monochrome];
+    pub const ALL: [ColorPreset; 5] = [
+        ColorPreset::None,
+        ColorPreset::Auto,
+        ColorPreset::RestoreFaded,
+        ColorPreset::Vivid,
+        ColorPreset::Monochrome,
+    ];
     pub fn label(self) -> &'static str {
         match self {
             ColorPreset::None => "None",
@@ -47,8 +52,17 @@ impl ColorPreset {
                 contrast: 0.15,
                 ..Default::default()
             },
-            ColorPreset::Vivid => ColorParams { saturation: 1.25, contrast: 0.25, ..Default::default() },
-            ColorPreset::Monochrome => ColorParams { saturation: 0.0, white_balance: 0.0, contrast: 0.1, ..Default::default() },
+            ColorPreset::Vivid => ColorParams {
+                saturation: 1.25,
+                contrast: 0.25,
+                ..Default::default()
+            },
+            ColorPreset::Monochrome => ColorParams {
+                saturation: 0.0,
+                white_balance: 0.0,
+                contrast: 0.1,
+                ..Default::default()
+            },
         })
     }
 }
@@ -87,11 +101,19 @@ impl Default for ColorParams {
 
 #[inline]
 fn srgb_to_lin(c: f32) -> f32 {
-    if c <= 0.04045 { c / 12.92 } else { ((c + 0.055) / 1.055).powf(2.4) }
+    if c <= 0.04045 {
+        c / 12.92
+    } else {
+        ((c + 0.055) / 1.055).powf(2.4)
+    }
 }
 #[inline]
 fn lin_to_srgb(c: f32) -> f32 {
-    if c <= 0.0031308 { c * 12.92 } else { 1.055 * c.max(0.0).powf(1.0 / 2.4) - 0.055 }
+    if c <= 0.0031308 {
+        c * 12.92
+    } else {
+        1.055 * c.max(0.0).powf(1.0 / 2.4) - 0.055
+    }
 }
 
 #[inline]
@@ -142,18 +164,30 @@ fn analyse(img: &Rgb32FImage, p: &ColorParams) -> [ChannelCurve; 3] {
     let chans = [chan(0), chan(1), chan(2)];
     let lows: Vec<f32> = chans.iter().map(|v| percentile(v, p.clip)).collect();
     let highs: Vec<f32> = chans.iter().map(|v| percentile(v, 1.0 - p.clip)).collect();
-    let mut curves = [ChannelCurve { lo: 0.0, gain: 1.0, gamma: 1.0 }; 3];
+    let mut curves = [ChannelCurve {
+        lo: 0.0,
+        gain: 1.0,
+        gamma: 1.0,
+    }; 3];
     if p.per_channel_levels {
         for c in 0..3 {
             let range = (highs[c] - lows[c]).max(1e-3);
-            curves[c] = ChannelCurve { lo: lows[c], gain: (1.0 / range).min(p.max_gain), gamma: 1.0 };
+            curves[c] = ChannelCurve {
+                lo: lows[c],
+                gain: (1.0 / range).min(p.max_gain),
+                gamma: 1.0,
+            };
         }
     } else {
         let lo = lows.iter().cloned().fold(f32::MAX, f32::min);
         let hi = highs.iter().cloned().fold(f32::MIN, f32::max);
         let gain = (1.0 / (hi - lo).max(1e-3)).min(p.max_gain);
         for c in curves.iter_mut() {
-            *c = ChannelCurve { lo, gain, gamma: 1.0 };
+            *c = ChannelCurve {
+                lo,
+                gain,
+                gamma: 1.0,
+            };
         }
     }
 
@@ -162,7 +196,11 @@ fn analyse(img: &Rgb32FImage, p: &ColorParams) -> [ChannelCurve; 3] {
         let mut sums = [0.0f64; 3];
         let mut cnt = 0usize;
         for i in 0..n {
-            let v = [curves[0].apply(px[i * 3]), curves[1].apply(px[i * 3 + 1]), curves[2].apply(px[i * 3 + 2])];
+            let v = [
+                curves[0].apply(px[i * 3]),
+                curves[1].apply(px[i * 3 + 1]),
+                curves[2].apply(px[i * 3 + 2]),
+            ];
             let mx = v[0].max(v[1]).max(v[2]);
             let mn = v[0].min(v[1]).min(v[2]);
             let lum = (v[0] + v[1] + v[2]) / 3.0;
@@ -195,7 +233,17 @@ fn analyse(img: &Rgb32FImage, p: &ColorParams) -> [ChannelCurve; 3] {
 
     // Mid-tone balance: per-channel gamma that maps each channel's median to the common median.
     if p.midtone_balance > 0.0 {
-        let meds: Vec<f32> = (0..3).map(|c| percentile(&chans[c].iter().map(|&x| curves[c].apply(x)).collect::<Vec<_>>(), 0.5)).collect();
+        let meds: Vec<f32> = (0..3)
+            .map(|c| {
+                percentile(
+                    &chans[c]
+                        .iter()
+                        .map(|&x| curves[c].apply(x))
+                        .collect::<Vec<_>>(),
+                    0.5,
+                )
+            })
+            .collect();
         let target = (meds[0] + meds[1] + meds[2]) / 3.0;
         for c in 0..3 {
             if meds[c] > 0.02 && meds[c] < 0.98 && target > 0.02 && target < 0.98 {
@@ -211,13 +259,24 @@ fn analyse(img: &Rgb32FImage, p: &ColorParams) -> [ChannelCurve; 3] {
 pub fn apply(img: &DynamicImage, p: &ColorParams) -> DynamicImage {
     let is16 = matches!(
         img,
-        DynamicImage::ImageRgb16(_) | DynamicImage::ImageRgba16(_) | DynamicImage::ImageLuma16(_) | DynamicImage::ImageLumaA16(_)
+        DynamicImage::ImageRgb16(_)
+            | DynamicImage::ImageRgba16(_)
+            | DynamicImage::ImageLuma16(_)
+            | DynamicImage::ImageLumaA16(_)
     );
-    let was_gray = matches!(img, DynamicImage::ImageLuma8(_) | DynamicImage::ImageLuma16(_));
+    let was_gray = matches!(
+        img,
+        DynamicImage::ImageLuma8(_) | DynamicImage::ImageLuma16(_)
+    );
     let (w, h) = (img.width(), img.height());
     let scale = (512.0 / w.max(h) as f64).min(1.0);
     let small = if scale < 1.0 {
-        img.resize((w as f64 * scale).max(1.0) as u32, (h as f64 * scale).max(1.0) as u32, FilterType::Triangle).to_rgb32f()
+        img.resize(
+            (w as f64 * scale).max(1.0) as u32,
+            (h as f64 * scale).max(1.0) as u32,
+            FilterType::Triangle,
+        )
+        .to_rgb32f()
     } else {
         img.to_rgb32f()
     };
@@ -265,7 +324,12 @@ pub fn simulate_fade(img: &DynamicImage) -> DynamicImage {
 /// Mean absolute difference between two same-size RGB8 images (0..255).
 pub fn mean_abs_diff(a: &DynamicImage, b: &DynamicImage) -> f64 {
     let (a, b) = (a.to_rgb8(), b.to_rgb8());
-    let s: u64 = a.as_raw().iter().zip(b.as_raw()).map(|(x, y)| (*x as i32 - *y as i32).unsigned_abs() as u64).sum();
+    let s: u64 = a
+        .as_raw()
+        .iter()
+        .zip(b.as_raw())
+        .map(|(x, y)| (*x as i32 - *y as i32).unsigned_abs() as u64)
+        .sum();
     s as f64 / a.as_raw().len() as f64
 }
 
@@ -279,8 +343,18 @@ mod tests {
 
     #[test]
     fn restore_reduces_fade_error() {
-        let scene = render_scene(&SceneParams { seed: 3, dpi: 50.0, count: Some(1), ..Default::default() });
-        let photo = crate::crop::extract(&scene.image, crate::ScanGeometry::new(50.0), &scene.truth[0], 1.0);
+        let scene = render_scene(&SceneParams {
+            seed: 3,
+            dpi: 50.0,
+            count: Some(1),
+            ..Default::default()
+        });
+        let photo = crate::crop::extract(
+            &scene.image,
+            crate::ScanGeometry::new(50.0),
+            &scene.truth[0],
+            1.0,
+        );
         let faded = simulate_fade(&photo);
         let restored = apply(&faded, &ColorPreset::RestoreFaded.params().unwrap());
         let before = mean_abs_diff(&photo, &faded);
@@ -290,7 +364,12 @@ mod tests {
 
     #[test]
     fn keeps_16_bit() {
-        let img = DynamicImage::ImageRgb16(ImageBuffer::from_fn(64, 64, |x, y| Rgb([(x * 900) as u16, (y * 800) as u16, 30000])));
-        assert!(matches!(apply(&img, &ColorParams::default()), DynamicImage::ImageRgb16(_)));
+        let img = DynamicImage::ImageRgb16(ImageBuffer::from_fn(64, 64, |x, y| {
+            Rgb([(x * 900) as u16, (y * 800) as u16, 30000])
+        }));
+        assert!(matches!(
+            apply(&img, &ColorParams::default()),
+            DynamicImage::ImageRgb16(_)
+        ));
     }
 }

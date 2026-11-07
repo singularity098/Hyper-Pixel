@@ -19,7 +19,12 @@ fn cubic_weights(t: f32) -> [f32; 4] {
     ]
 }
 
-fn extract_generic<P>(src: &ImageBuffer<P, Vec<P::Subpixel>>, rect: &RotatedRect, out_w: u32, out_h: u32) -> ImageBuffer<P, Vec<P::Subpixel>>
+fn extract_generic<P>(
+    src: &ImageBuffer<P, Vec<P::Subpixel>>,
+    rect: &RotatedRect,
+    out_w: u32,
+    out_h: u32,
+) -> ImageBuffer<P, Vec<P::Subpixel>>
 where
     P: Pixel + Send + Sync,
     P::Subpixel: Primitive + Send + Sync + Into<f32>,
@@ -32,36 +37,39 @@ where
     // Step in source pixels per output pixel along each local axis.
     let sx = rect.w / out_w as f64;
     let sy = rect.h / out_h as f64;
-    let mut out: Vec<P::Subpixel> = vec![<P::Subpixel as Primitive>::DEFAULT_MIN_VALUE; out_w as usize * out_h as usize * ch];
-    out.par_chunks_mut(out_w as usize * ch).enumerate().for_each(|(oy, row)| {
-        let mut acc = [0.0f32; 4];
-        for ox in 0..out_w as usize {
-            let u = (ox as f64 + 0.5) * sx - rect.w / 2.0;
-            let v = (oy as f64 + 0.5) * sy - rect.h / 2.0;
-            // Source position in pixel-centre coordinates.
-            let px = rect.cx + ux.x * u + uy.x * v - 0.5;
-            let py = rect.cy + ux.y * u + uy.y * v - 0.5;
-            let (x0, y0) = (px.floor() as isize, py.floor() as isize);
-            let wx = cubic_weights((px - x0 as f64) as f32);
-            let wy = cubic_weights((py - y0 as f64) as f32);
-            acc[..ch].fill(0.0);
-            for (j, wyj) in wy.iter().enumerate() {
-                let yy = (y0 - 1 + j as isize).clamp(0, sh - 1) as usize;
-                for (i, wxi) in wx.iter().enumerate() {
-                    let xx = (x0 - 1 + i as isize).clamp(0, sw - 1) as usize;
-                    let w = wxi * wyj;
-                    let base = (yy * sw as usize + xx) * ch;
-                    for c in 0..ch {
-                        acc[c] += raw[base + c].into() * w;
+    let mut out: Vec<P::Subpixel> =
+        vec![<P::Subpixel as Primitive>::DEFAULT_MIN_VALUE; out_w as usize * out_h as usize * ch];
+    out.par_chunks_mut(out_w as usize * ch)
+        .enumerate()
+        .for_each(|(oy, row)| {
+            let mut acc = [0.0f32; 4];
+            for ox in 0..out_w as usize {
+                let u = (ox as f64 + 0.5) * sx - rect.w / 2.0;
+                let v = (oy as f64 + 0.5) * sy - rect.h / 2.0;
+                // Source position in pixel-centre coordinates.
+                let px = rect.cx + ux.x * u + uy.x * v - 0.5;
+                let py = rect.cy + ux.y * u + uy.y * v - 0.5;
+                let (x0, y0) = (px.floor() as isize, py.floor() as isize);
+                let wx = cubic_weights((px - x0 as f64) as f32);
+                let wy = cubic_weights((py - y0 as f64) as f32);
+                acc[..ch].fill(0.0);
+                for (j, wyj) in wy.iter().enumerate() {
+                    let yy = (y0 - 1 + j as isize).clamp(0, sh - 1) as usize;
+                    for (i, wxi) in wx.iter().enumerate() {
+                        let xx = (x0 - 1 + i as isize).clamp(0, sw - 1) as usize;
+                        let w = wxi * wyj;
+                        let base = (yy * sw as usize + xx) * ch;
+                        for c in 0..ch {
+                            acc[c] += raw[base + c].into() * w;
+                        }
                     }
                 }
+                for c in 0..ch {
+                    let v = acc[c].clamp(0.0, maxv).round();
+                    row[ox * ch + c] = num_from_f32::<P::Subpixel>(v);
+                }
             }
-            for c in 0..ch {
-                let v = acc[c].clamp(0.0, maxv).round();
-                row[ox * ch + c] = num_from_f32::<P::Subpixel>(v);
-            }
-        }
-    });
+        });
     ImageBuffer::from_raw(out_w, out_h, out).expect("buffer size")
 }
 
@@ -72,18 +80,31 @@ fn num_from_f32<T: Primitive>(v: f32) -> T {
 
 /// Extract `rect` (bed mm) from `img`, straightened, at the image's native resolution.
 /// `inset_mm` trims each edge (positive) to avoid slivers of background.
-pub fn extract(img: &DynamicImage, geo: ScanGeometry, rect: &RotatedRect, inset_mm: f64) -> DynamicImage {
+pub fn extract(
+    img: &DynamicImage,
+    geo: ScanGeometry,
+    rect: &RotatedRect,
+    inset_mm: f64,
+) -> DynamicImage {
     let r = geo.mm_to_px(&rect.inset(inset_mm));
     let out_w = r.w.round().max(1.0) as u32;
     let out_h = r.h.round().max(1.0) as u32;
     match img {
-        DynamicImage::ImageRgb8(b) => DynamicImage::ImageRgb8(extract_generic::<Rgb<u8>>(b, &r, out_w, out_h)),
-        DynamicImage::ImageRgb16(b) => DynamicImage::ImageRgb16(extract_generic::<Rgb<u16>>(b, &r, out_w, out_h)),
-        DynamicImage::ImageLuma8(b) => DynamicImage::ImageLuma8(extract_generic::<Luma<u8>>(b, &r, out_w, out_h)),
-        DynamicImage::ImageLuma16(b) => DynamicImage::ImageLuma16(extract_generic::<Luma<u16>>(b, &r, out_w, out_h)),
-        DynamicImage::ImageRgba16(_) | DynamicImage::ImageLumaA16(_) => {
-            DynamicImage::ImageRgb16(extract_generic::<Rgb<u16>>(&img.to_rgb16(), &r, out_w, out_h))
+        DynamicImage::ImageRgb8(b) => {
+            DynamicImage::ImageRgb8(extract_generic::<Rgb<u8>>(b, &r, out_w, out_h))
         }
+        DynamicImage::ImageRgb16(b) => {
+            DynamicImage::ImageRgb16(extract_generic::<Rgb<u16>>(b, &r, out_w, out_h))
+        }
+        DynamicImage::ImageLuma8(b) => {
+            DynamicImage::ImageLuma8(extract_generic::<Luma<u8>>(b, &r, out_w, out_h))
+        }
+        DynamicImage::ImageLuma16(b) => {
+            DynamicImage::ImageLuma16(extract_generic::<Luma<u16>>(b, &r, out_w, out_h))
+        }
+        DynamicImage::ImageRgba16(_) | DynamicImage::ImageLumaA16(_) => DynamicImage::ImageRgb16(
+            extract_generic::<Rgb<u16>>(&img.to_rgb16(), &r, out_w, out_h),
+        ),
         _ => DynamicImage::ImageRgb8(extract_generic::<Rgb<u8>>(&img.to_rgb8(), &r, out_w, out_h)),
     }
 }
@@ -119,9 +140,20 @@ mod tests {
 
     #[test]
     fn sixteen_bit_preserved() {
-        let img = DynamicImage::ImageRgb16(ImageBuffer::from_pixel(50, 50, Rgb([1000u16, 40000, 65535])));
-        let out = extract(&img, ScanGeometry::new(25.4), &RotatedRect::new(25.0, 25.0, 20.0, 20.0, 7.0), 0.0);
-        let DynamicImage::ImageRgb16(b) = out else { panic!("bit depth lost") };
+        let img = DynamicImage::ImageRgb16(ImageBuffer::from_pixel(
+            50,
+            50,
+            Rgb([1000u16, 40000, 65535]),
+        ));
+        let out = extract(
+            &img,
+            ScanGeometry::new(25.4),
+            &RotatedRect::new(25.0, 25.0, 20.0, 20.0, 7.0),
+            0.0,
+        );
+        let DynamicImage::ImageRgb16(b) = out else {
+            panic!("bit depth lost")
+        };
         assert_eq!(b.get_pixel(10, 10), &Rgb([1000, 40000, 65535]));
     }
 }

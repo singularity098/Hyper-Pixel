@@ -67,7 +67,9 @@ impl Rng {
 }
 
 fn hash2(x: i64, y: i64, s: u64) -> f64 {
-    let mut h = (x as u64).wrapping_mul(0x9E3779B97F4A7C15) ^ (y as u64).wrapping_mul(0xC2B2AE3D27D4EB4F) ^ s;
+    let mut h = (x as u64).wrapping_mul(0x9E3779B97F4A7C15)
+        ^ (y as u64).wrapping_mul(0xC2B2AE3D27D4EB4F)
+        ^ s;
     h ^= h >> 33;
     h = h.wrapping_mul(0xFF51AFD7ED558CCD);
     h ^= h >> 33;
@@ -116,8 +118,20 @@ impl Photo {
         let (w, h) = (self.rect.w, self.rect.h);
         let r = self.corner_r;
         if r > 0.0 {
-            let cx = if u < r { r } else if u > w - r { w - r } else { u };
-            let cy = if v < r { r } else if v > h - r { h - r } else { v };
+            let cx = if u < r {
+                r
+            } else if u > w - r {
+                w - r
+            } else {
+                u
+            };
+            let cy = if v < r {
+                r
+            } else if v > h - r {
+                h - r
+            } else {
+                v
+            };
             if (u - cx).powi(2) + (v - cy).powi(2) > r * r {
                 return None;
             }
@@ -138,7 +152,11 @@ impl Photo {
                 self.sky[2] * (1.0 - 0.1 * k),
             ]
         } else {
-            [self.ground[0] * (0.6 + 0.8 * n), self.ground[1] * (0.6 + 0.8 * n), self.ground[2] * (0.6 + 0.8 * n)]
+            [
+                self.ground[0] * (0.6 + 0.8 * n),
+                self.ground[1] * (0.6 + 0.8 * n),
+                self.ground[2] * (0.6 + 0.8 * n),
+            ]
         };
         for ch in &mut c {
             *ch = (*ch * self.brightness + fine * 30.0).clamp(0.0, 255.0);
@@ -149,7 +167,14 @@ impl Photo {
 
 pub fn render_scene(p: &SceneParams) -> Scene {
     let mut rng = Rng::new(p.seed);
-    let sizes = [(152.0, 102.0), (127.0, 89.0), (178.0, 127.0), (89.0, 89.0), (102.0, 102.0), (89.0, 64.0)];
+    let sizes = [
+        (152.0, 102.0),
+        (127.0, 89.0),
+        (178.0, 127.0),
+        (89.0, 89.0),
+        (102.0, 102.0),
+        (89.0, 64.0),
+    ];
     let target = p.count.unwrap_or(1 + (rng.f64() * 4.0) as usize);
     let mut photos: Vec<Photo> = Vec::new();
     let mut attempts = 0;
@@ -160,30 +185,65 @@ pub fn render_scene(p: &SceneParams) -> Scene {
             std::mem::swap(&mut w, &mut h);
         }
         let angle = rng.range(-p.max_angle, p.max_angle);
-        let r = RotatedRect::new(rng.range(0.0, p.bed_mm.0), rng.range(0.0, p.bed_mm.1), w, h, angle);
-        let inside = r.corners().iter().all(|c| c.x > 2.0 && c.y > 2.0 && c.x < p.bed_mm.0 - 2.0 && c.y < p.bed_mm.1 - 2.0);
+        let r = RotatedRect::new(
+            rng.range(0.0, p.bed_mm.0),
+            rng.range(0.0, p.bed_mm.1),
+            w,
+            h,
+            angle,
+        );
+        let inside = r
+            .corners()
+            .iter()
+            .all(|c| c.x > 2.0 && c.y > 2.0 && c.x < p.bed_mm.0 - 2.0 && c.y < p.bed_mm.1 - 2.0);
         if !inside {
             continue;
         }
         let grown = r.inset(-p.min_gap_mm / 2.0);
-        if photos.iter().any(|o| o.rect.inset(-p.min_gap_mm / 2.0).iou(&grown) > 0.0) {
+        if photos
+            .iter()
+            .any(|o| o.rect.inset(-p.min_gap_mm / 2.0).iou(&grown) > 0.0)
+        {
             continue;
         }
         let dark_scene = rng.f64() < 0.2;
         photos.push(Photo {
             rect: r,
-            border_mm: if rng.f64() < 0.35 { rng.range(2.5, 6.0) } else { 0.0 },
-            corner_r: if rng.f64() < 0.3 { rng.range(1.0, 4.0) } else { 0.0 },
+            border_mm: if rng.f64() < 0.35 {
+                rng.range(2.5, 6.0)
+            } else {
+                0.0
+            },
+            corner_r: if rng.f64() < 0.3 {
+                rng.range(1.0, 4.0)
+            } else {
+                0.0
+            },
             seed: rng.next_u64(),
-            sky: [rng.range(90.0, 220.0), rng.range(120.0, 230.0), rng.range(150.0, 250.0)],
-            ground: [rng.range(30.0, 160.0), rng.range(30.0, 150.0), rng.range(20.0, 120.0)],
-            brightness: if dark_scene { rng.range(0.1, 0.3) } else { rng.range(0.7, 1.1) },
+            sky: [
+                rng.range(90.0, 220.0),
+                rng.range(120.0, 230.0),
+                rng.range(150.0, 250.0),
+            ],
+            ground: [
+                rng.range(30.0, 160.0),
+                rng.range(30.0, 150.0),
+                rng.range(20.0, 120.0),
+            ],
+            brightness: if dark_scene {
+                rng.range(0.1, 0.3)
+            } else {
+                rng.range(0.7, 1.1)
+            },
             horizon: rng.range(0.2, 0.7),
         });
     }
 
     let ppm = p.dpi / 25.4;
-    let (wpx, hpx) = ((p.bed_mm.0 * ppm).round() as u32, (p.bed_mm.1 * ppm).round() as u32);
+    let (wpx, hpx) = (
+        (p.bed_mm.0 * ppm).round() as u32,
+        (p.bed_mm.1 * ppm).round() as u32,
+    );
     let mut img = RgbImage::new(wpx, hpx);
     let bg_seed = rng.next_u64();
     let dark = p.dark_background;
@@ -210,8 +270,20 @@ pub fn render_scene(p: &SceneParams) -> Scene {
                             }
                         }
                         // Light lid: a thin shadow line around prints.
-                        let ou = if u < 0.0 { -u } else if u > ph.rect.w { u - ph.rect.w } else { 0.0 };
-                        let ov = if v < 0.0 { -v } else if v > ph.rect.h { v - ph.rect.h } else { 0.0 };
+                        let ou = if u < 0.0 {
+                            -u
+                        } else if u > ph.rect.w {
+                            u - ph.rect.w
+                        } else {
+                            0.0
+                        };
+                        let ov = if v < 0.0 {
+                            -v
+                        } else if v > ph.rect.h {
+                            v - ph.rect.h
+                        } else {
+                            0.0
+                        };
                         let od = (ou * ou + ov * ov).sqrt();
                         if od < shadow_mm {
                             shadow = shadow.max(1.0 - od / shadow_mm);
@@ -222,7 +294,9 @@ pub fn render_scene(p: &SceneParams) -> Scene {
                             let n = value_noise(pm.x / 30.0, pm.y / 30.0, bg_seed) * 6.0;
                             [10.0 + n, 10.0 + n, 13.0 + n]
                         } else {
-                            let vig = ((pm.x / p.bed_mm.0 - 0.5).powi(2) + (pm.y / p.bed_mm.1 - 0.5).powi(2)) * 25.0;
+                            let vig = ((pm.x / p.bed_mm.0 - 0.5).powi(2)
+                                + (pm.y / p.bed_mm.1 - 0.5).powi(2))
+                                * 25.0;
                             let s = shadow * 40.0;
                             [240.0 - vig - s, 240.0 - vig - s, 237.0 - vig - s]
                         }
@@ -246,5 +320,9 @@ pub fn render_scene(p: &SceneParams) -> Scene {
             img.put_pixel(x as u32, y as u32, Rgb(c));
         }
     }
-    Scene { image: DynamicImage::ImageRgb8(img), dpi: p.dpi, truth: photos.iter().map(|ph| ph.rect.normalized()).collect() }
+    Scene {
+        image: DynamicImage::ImageRgb8(img),
+        dpi: p.dpi,
+        truth: photos.iter().map(|ph| ph.rect.normalized()).collect(),
+    }
 }
