@@ -59,6 +59,11 @@ automatically when SANE finds no devices. For CI, SANE's `test` backend is enabl
 AppImage, and publishes a `continuous` prerelease on every push to main. Tags `v*`
 create releases.
 
+Icon: `assets/hyper-pixel.svg` is the source (a stack of prints, the front one dissolving into
+pixels, on a #121419 tile). `assets/hyper-pixel.png` (512) and `hyper-pixel-128.png` are
+rendered from it with headless Chromium, not drawn by hand; re-render them after editing the SVG.
+Wordmark: "Hyper Pixel" semibold with the tagline "SCAN · SPLIT · RESTORE" letter-spaced below.
+
 ## Roadmap / ideas
 - Real-scan corpus from the owner's LiDE 400, then tune the detector on it. Particular
   cases: dark photos on black, white borders on the white lid, touching prints.

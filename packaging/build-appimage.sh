@@ -15,10 +15,12 @@ cargo build --release --locked -p hp-app -p hp-cli
 
 rm -rf "$APPDIR"
 mkdir -p "$APPDIR/usr/bin" "$APPDIR/usr/share/applications" \
-         "$APPDIR/usr/share/icons/hicolor/512x512/apps" "$APPDIR/usr/share/hyper-pixel/models" "$TOOLS"
+         "$APPDIR/usr/share/icons/hicolor/512x512/apps" "$APPDIR/usr/share/icons/hicolor/scalable/apps" \
+         "$APPDIR/usr/share/hyper-pixel/models" "$TOOLS"
 install -m755 target/release/hyper-pixel target/release/hyper-pixel-cli "$APPDIR/usr/bin/"
 install -m644 packaging/hyper-pixel.desktop "$APPDIR/usr/share/applications/"
 install -m644 assets/hyper-pixel.png "$APPDIR/usr/share/icons/hicolor/512x512/apps/hyper-pixel.png"
+install -m644 assets/hyper-pixel.svg "$APPDIR/usr/share/icons/hicolor/scalable/apps/hyper-pixel.svg"
 cp packaging/hyper-pixel.desktop assets/hyper-pixel.png "$APPDIR/"
 ln -sf hyper-pixel.png "$APPDIR/.DirIcon"
 install -m755 packaging/AppRun "$APPDIR/AppRun"
