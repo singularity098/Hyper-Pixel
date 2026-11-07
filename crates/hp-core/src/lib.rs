@@ -9,6 +9,7 @@ pub mod eval;
 pub mod export;
 pub mod geom;
 pub mod pdf;
+pub mod pipeline;
 pub mod raster;
 pub mod synth;
 

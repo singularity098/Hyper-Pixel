@@ -1,0 +1,18 @@
+[package]
+name = "hp-ocr"
+description = "OCR for Hyper Pixel (pure-Rust ocrs engine), model management"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+hp-core.workspace = true
+image.workspace = true
+thiserror.workspace = true
+log.workspace = true
+anyhow.workspace = true
+ocrs = "0.13"
+rten = "0.26"
+ureq = { version = "3", default-features = false, features = ["rustls"] }
+dirs = "6"
