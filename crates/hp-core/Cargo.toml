@@ -1,0 +1,16 @@
+[package]
+name = "hp-core"
+description = "Hyper Pixel image processing: photo detection, cropping, colour, documents, export"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+image.workspace = true
+rayon.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+log.workspace = true
+num-traits = "0.2"

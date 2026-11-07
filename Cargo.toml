@@ -1,0 +1,35 @@
+[workspace]
+resolver = "3"
+members = ["crates/hp-core"]
+
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/singularity098/Hyper-Pixel"
+rust-version = "1.94"
+
+[workspace.dependencies]
+hp-core = { path = "crates/hp-core" }
+hp-scan = { path = "crates/hp-scan" }
+hp-ocr = { path = "crates/hp-ocr" }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "tiff", "webp", "bmp", "rayon"] }
+rayon = "1.10"
+anyhow = "1"
+thiserror = "2"
+log = "0.4"
+env_logger = "0.11"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+lto = "thin"
+codegen-units = 4
+strip = true
+
+# Image processing is unbearably slow unoptimised; keep dev builds usable.
+[profile.dev.package."*"]
+opt-level = 3
+[profile.dev]
+opt-level = 1
