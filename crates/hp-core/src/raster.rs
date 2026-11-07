@@ -370,6 +370,36 @@ pub fn percentile(values: &[f32], p: f64) -> f32 {
     *m
 }
 
+/// Draw rotated rectangle outlines onto an RGB image (debug/visualisation helper).
+pub fn draw_rects(
+    img: &mut image::RgbImage,
+    rects: &[crate::geom::RotatedRect],
+    color: [u8; 3],
+    thickness: u32,
+) {
+    let (w, h) = (img.width() as i64, img.height() as i64);
+    for r in rects {
+        let c = r.corners();
+        for k in 0..4 {
+            let (a, b) = (c[k], c[(k + 1) % 4]);
+            let n = (a.dist(b).ceil() as usize).max(1) * 2;
+            for s in 0..=n {
+                let t = s as f64 / n as f64;
+                let (x, y) = (a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t);
+                let half = thickness as i64 / 2;
+                for dy in -half..=half {
+                    for dx in -half..=half {
+                        let (px, py) = (x as i64 + dx, y as i64 + dy);
+                        if px >= 0 && py >= 0 && px < w && py < h {
+                            img.put_pixel(px as u32, py as u32, image::Rgb(color));
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -400,35 +430,5 @@ mod tests {
         assert_eq!(m.erode(1.0).count(), 64);
         assert_eq!(m.dilate(1.0).count(), 140);
         assert_eq!(m.open(1.0).count(), 96);
-    }
-}
-
-/// Draw rotated rectangle outlines onto an RGB image (debug/visualisation helper).
-pub fn draw_rects(
-    img: &mut image::RgbImage,
-    rects: &[crate::geom::RotatedRect],
-    color: [u8; 3],
-    thickness: u32,
-) {
-    let (w, h) = (img.width() as i64, img.height() as i64);
-    for r in rects {
-        let c = r.corners();
-        for k in 0..4 {
-            let (a, b) = (c[k], c[(k + 1) % 4]);
-            let n = (a.dist(b).ceil() as usize).max(1) * 2;
-            for s in 0..=n {
-                let t = s as f64 / n as f64;
-                let (x, y) = (a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t);
-                let half = thickness as i64 / 2;
-                for dy in -half..=half {
-                    for dx in -half..=half {
-                        let (px, py) = (x as i64 + dx, y as i64 + dy);
-                        if px >= 0 && py >= 0 && px < w && py < h {
-                            img.put_pixel(px as u32, py as u32, image::Rgb(color));
-                        }
-                    }
-                }
-            }
-        }
     }
 }

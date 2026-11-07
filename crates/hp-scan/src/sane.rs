@@ -370,10 +370,10 @@ impl SaneDevice {
 
     /// Set an option if present & settable, ignoring failures (logged).
     fn try_set(&mut self, name: &str, v: OptValue) {
-        if self.has_active(name) {
-            if let Err(e) = self.set_option(name, v.clone()) {
-                log::warn!("could not set {name} = {v:?}: {e}");
-            }
+        if self.has_active(name)
+            && let Err(e) = self.set_option(name, v.clone())
+        {
+            log::warn!("could not set {name} = {v:?}: {e}");
         }
     }
 
@@ -493,28 +493,28 @@ impl Device for SaneDevice {
                 caps.modes.push(m);
             }
         }
-        if let Some((o, _, _)) = self.find("depth") {
-            if let Constraint::List(v) = &o.constraint {
-                caps.depths = v.iter().map(|d| *d as u8).collect();
-            }
+        if let Some((o, _, _)) = self.find("depth")
+            && let Constraint::List(v) = &o.constraint
+        {
+            caps.depths = v.iter().map(|d| *d as u8).collect();
         }
         if caps.depths.is_empty() {
             caps.depths = vec![8];
         }
-        if let Some((o, _, _)) = self.find("source") {
-            if let Constraint::Strings(v) = &o.constraint {
-                caps.sources = v.clone();
-            }
+        if let Some((o, _, _)) = self.find("source")
+            && let Constraint::Strings(v) = &o.constraint
+        {
+            caps.sources = v.clone();
         }
         let range_max = |n: &str| match self.find(n).map(|o| &o.0.constraint) {
             Some(Constraint::Range { max, .. }) => Some(*max),
             Some(Constraint::List(v)) => v.iter().cloned().reduce(f64::max),
             _ => None,
         };
-        if self.opt_unit("br-x") == Some(Unit::Mm) {
-            if let (Some(w), Some(h)) = (range_max("br-x"), range_max("br-y")) {
-                caps.bed_mm = Some((w, h));
-            }
+        if self.opt_unit("br-x") == Some(Unit::Mm)
+            && let (Some(w), Some(h)) = (range_max("br-x"), range_max("br-y"))
+        {
+            caps.bed_mm = Some((w, h));
         }
         Ok(caps)
     }

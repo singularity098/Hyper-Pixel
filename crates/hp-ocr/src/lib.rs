@@ -50,10 +50,10 @@ pub fn find_models() -> Option<PathBuf> {
     if let Some(p) = std::env::var_os("APPDIR") {
         cands.push(PathBuf::from(p).join("usr/share/hyper-pixel/models"));
     }
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(bin) = exe.parent() {
-            cands.push(bin.join("../share/hyper-pixel/models"));
-        }
+    if let Ok(exe) = std::env::current_exe()
+        && let Some(bin) = exe.parent()
+    {
+        cands.push(bin.join("../share/hyper-pixel/models"));
     }
     cands.push(user_model_dir());
     cands.into_iter().find(|d| has_models(d))

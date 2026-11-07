@@ -117,7 +117,7 @@ pub fn write_pdf(pages: &[Page], title: &str) -> Vec<u8> {
 
         // Content stream
         let mut content = Vec::new();
-        write!(content, "q {pt_w:.3} 0 0 {pt_h:.3} 0 0 cm /Im0 Do Q\n").unwrap();
+        writeln!(content, "q {pt_w:.3} 0 0 {pt_h:.3} 0 0 cm /Im0 Do Q").unwrap();
         if !page.words.is_empty() {
             let s = 72.0 / page.dpi;
             content.extend(b"BT 3 Tr\n");
@@ -174,14 +174,14 @@ pub fn write_pdf(pages: &[Page], title: &str) -> Vec<u8> {
     let mut offsets = Vec::new();
     for (i, obj) in objects.iter().enumerate() {
         offsets.push(out.len());
-        write!(out, "{} 0 obj\n", i + 1).unwrap();
+        writeln!(out, "{} 0 obj", i + 1).unwrap();
         out.extend(obj);
         out.extend(b"\nendobj\n");
     }
     let xref = out.len();
     write!(out, "xref\n0 {}\n0000000000 65535 f \n", objects.len() + 1).unwrap();
     for o in offsets {
-        write!(out, "{o:010} 00000 n \n").unwrap();
+        writeln!(out, "{o:010} 00000 n ").unwrap();
     }
     write!(
         out,

@@ -1,0 +1,734 @@
+// Hyper Pixel main window.
+import { Button, ComboBox, Switch, LineEdit, ProgressIndicator, ScrollView, Slider, Spinner } from "std-widgets.slint";
+
+export struct CropBoxUi {
+    // Corners in preview-image pixels: top-left, top-right, bottom-right, bottom-left.
+    x1: float, y1: float, x2: float, y2: float, x3: float, y3: float, x4: float, y4: float,
+    // Rotation handle and label anchor.
+    hx: float, hy: float, tx: float, ty: float,
+    // Marker on the edge that will be "up" in the output.
+    ux: float, uy: float,
+    selected: bool,
+    weak: bool,
+    label: string,
+}
+
+export struct ResultItem {
+    image: image,
+    label: string,
+    path: string,
+}
+
+export global Theme {
+    out property <color> bg: #121419;
+    out property <color> panel: #191c23;
+    out property <color> panel-2: #20242d;
+    out property <color> line: #2a2f3a;
+    out property <color> text: #e7e9ef;
+    out property <color> muted: #8b92a3;
+    out property <color> accent: #5aa9ff;
+    out property <color> good: #3ddc97;
+    out property <color> warn: #ffb347;
+    out property <color> danger: #ff6b6b;
+}
+
+component SectionTitle inherits Text {
+    color: Theme.muted;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+}
+
+component Field inherits VerticalLayout {
+    in property <string> label;
+    spacing: 4px;
+    Text { text: root.label; color: Theme.muted; font-size: 12px; }
+    @children
+}
+
+component Segment inherits Rectangle {
+    in property <string> text;
+    in property <bool> active;
+    callback clicked;
+    height: 34px;
+    border-radius: 7px;
+    background: root.active ? Theme.accent : (ta.has-hover ? Theme.panel-2 : transparent);
+    Text {
+        text: root.text;
+        color: root.active ? #0b1220 : Theme.text;
+        font-weight: root.active ? 700 : 500;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    ta := TouchArea { clicked => { root.clicked(); } }
+}
+
+component BigButton inherits Rectangle {
+    in property <string> text;
+    in property <bool> primary;
+    in property <bool> enabled: true;
+    callback clicked;
+    height: 44px;
+    border-radius: 9px;
+    background: !root.enabled ? Theme.panel-2 : root.primary ? (ta.pressed ? #3f8ee6 : ta.has-hover ? #74b7ff : Theme.accent) : (ta.has-hover ? #2b303b : Theme.panel-2);
+    border-width: root.primary ? 0 : 1px;
+    border-color: Theme.line;
+    Text {
+        text: root.text;
+        color: !root.enabled ? Theme.muted : root.primary ? #0b1220 : Theme.text;
+        font-size: 15px;
+        font-weight: 700;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    ta := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: root.enabled ? pointer : default;
+        clicked => { root.clicked(); }
+    }
+}
+
+component ToolButton inherits Rectangle {
+    in property <string> text;
+    in property <string> tip;
+    in property <bool> enabled: true;
+    callback clicked;
+    height: 30px;
+    min-width: 34px;
+    border-radius: 6px;
+    background: ta.has-hover && root.enabled ? Theme.panel-2 : transparent;
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+        Text {
+            text: root.text;
+            color: root.enabled ? Theme.text : #555b68;
+            font-size: 13px;
+            vertical-alignment: center;
+        }
+    }
+    ta := TouchArea {
+        enabled: root.enabled;
+        clicked => { root.clicked(); }
+    }
+}
+
+export component MainWindow inherits Window {
+    title: "Hyper Pixel";
+    icon: @image-url("../../../assets/hyper-pixel.png");
+    preferred-width: 1400px;
+    preferred-height: 900px;
+    min-width: 980px;
+    min-height: 640px;
+    background: Theme.bg;
+    default-font-size: 13px;
+    forward-focus: focus;
+
+    // ---- Scanner & settings -------------------------------------------------------------
+    in property <[string]> devices;
+    in-out property <int> device-index;
+    in-out property <int> mode; // 0 photos, 1 documents
+    in property <[string]> resolutions;
+    in-out property <int> photo-res-index;
+    in-out property <int> doc-res-index;
+    in property <[string]> color-modes;
+    in-out property <int> color-mode-index;
+    in property <[string]> sources;
+    in-out property <int> source-index;
+    in property <[string]> backgrounds;
+    in-out property <int> background-index;
+    in-out property <bool> auto-detect: true;
+    in property <[string]> color-presets;
+    in-out property <int> color-preset-index;
+    in-out property <bool> deskew: true;
+    in-out property <bool> whiten: true;
+    in property <[string]> doc-modes;
+    in-out property <int> doc-mode-index;
+    in-out property <bool> ocr: true;
+    in property <bool> ocr-ready;
+    in-out property <string> output-dir;
+    in property <[string]> formats;
+    in-out property <int> photo-format-index;
+    in-out property <int> doc-format-index;
+    in-out property <float> jpeg-quality: 95;
+    in-out property <string> name-pattern;
+    in-out property <bool> high-bit-depth;
+
+    // ---- Preview / editing --------------------------------------------------------------
+    in property <image> preview;
+    in property <float> preview-width;
+    in property <float> preview-height;
+    in property <[CropBoxUi]> boxes;
+    in property <bool> has-selection;
+    in property <bool> busy;
+    in property <float> progress;
+    in property <string> status: "Ready";
+    in property <string> hint;
+    in property <[ResultItem]> results;
+    in property <int> pending-pages;
+
+    callback refresh-devices();
+    callback device-selected(int);
+    callback settings-changed();
+    callback do-preview();
+    callback do-scan();
+    callback cancel();
+    callback canvas-down(float, float, float);
+    callback canvas-move(float, float);
+    callback canvas-up();
+    callback delete-selected();
+    callback turn-selected(int);
+    callback clear-boxes();
+    callback detect-again();
+    callback browse-output();
+    callback open-output();
+    callback save-document();
+    callback clear-pages();
+    callback result-open(int);
+    callback result-rotate(int);
+    callback result-delete(int);
+    callback download-models();
+
+    HorizontalLayout {
+        // =================================== Sidebar ======================================
+        Rectangle {
+            width: 320px;
+            background: Theme.panel;
+            Rectangle {
+                x: parent.width - 1px;
+                width: 1px;
+                background: Theme.line;
+            }
+            VerticalLayout {
+                padding: 18px;
+                padding-bottom: 14px;
+                spacing: 14px;
+
+                HorizontalLayout {
+                    spacing: 10px;
+                    Image {
+                        source: @image-url("../../../assets/hyper-pixel.png");
+                        width: 34px;
+                        height: 34px;
+                    }
+                    VerticalLayout {
+                        alignment: center;
+                        Text { text: "Hyper Pixel"; color: Theme.text; font-size: 20px; font-weight: 800; }
+                        Text { text: "Scan · Split · Restore"; color: Theme.muted; font-size: 11px; }
+                    }
+                }
+
+                ScrollView {
+                    vertical-stretch: 1;
+                    VerticalLayout {
+                        spacing: 14px;
+                        padding-right: 6px;
+
+                        SectionTitle { text: "SCANNER"; }
+                        HorizontalLayout {
+                            spacing: 6px;
+                            ComboBox {
+                                horizontal-stretch: 1;
+                                model: root.devices;
+                                current-index <=> root.device-index;
+                                enabled: !root.busy;
+                                selected => { root.device-selected(self.current-index); }
+                            }
+                            Button {
+                                text: "⟳";
+                                enabled: !root.busy;
+                                clicked => { root.refresh-devices(); }
+                            }
+                        }
+
+                        Rectangle {
+                            height: 40px;
+                            border-radius: 9px;
+                            background: Theme.bg;
+                            HorizontalLayout {
+                                padding: 3px;
+                                spacing: 3px;
+                                Segment {
+                                    text: "Photos";
+                                    active: root.mode == 0;
+                                    clicked => { root.mode = 0; root.settings-changed(); }
+                                }
+                                Segment {
+                                    text: "Documents";
+                                    active: root.mode == 1;
+                                    clicked => { root.mode = 1; root.settings-changed(); }
+                                }
+                            }
+                        }
+
+                        SectionTitle { text: "SCAN"; }
+                        Field {
+                            label: "Resolution";
+                            if root.mode == 0 : ComboBox {
+                                model: root.resolutions;
+                                current-index <=> root.photo-res-index;
+                                selected => { root.settings-changed(); }
+                            }
+                            if root.mode == 1 : ComboBox {
+                                model: root.resolutions;
+                                current-index <=> root.doc-res-index;
+                                selected => { root.settings-changed(); }
+                            }
+                        }
+                        Field {
+                            label: "Colour";
+                            if root.mode == 0 : ComboBox {
+                                model: root.color-modes;
+                                current-index <=> root.color-mode-index;
+                                selected => { root.settings-changed(); }
+                            }
+                            if root.mode == 1 : ComboBox {
+                                model: root.doc-modes;
+                                current-index <=> root.doc-mode-index;
+                                selected => { root.settings-changed(); }
+                            }
+                        }
+                        if root.sources.length > 1 : Field {
+                            label: "Source";
+                            ComboBox {
+                                model: root.sources;
+                                current-index <=> root.source-index;
+                                selected => { root.settings-changed(); }
+                            }
+                        }
+
+                        if root.mode == 0 : VerticalLayout {
+                            spacing: 14px;
+                            SectionTitle { text: "PHOTO SPLITTING"; }
+                            Switch {
+                                text: "Find & split photos automatically";
+                                checked <=> root.auto-detect;
+                                toggled => { root.settings-changed(); }
+                            }
+                            Field {
+                                label: "Background behind photos";
+                                ComboBox {
+                                    model: root.backgrounds;
+                                    current-index <=> root.background-index;
+                                    selected => { root.settings-changed(); }
+                                }
+                            }
+                            Field {
+                                label: "Colour correction";
+                                ComboBox {
+                                    model: root.color-presets;
+                                    current-index <=> root.color-preset-index;
+                                    selected => { root.settings-changed(); }
+                                }
+                            }
+                        }
+
+                        if root.mode == 1 : VerticalLayout {
+                            spacing: 12px;
+                            SectionTitle { text: "DOCUMENT CLEAN-UP"; }
+                            Switch {
+                                text: "Straighten pages";
+                                checked <=> root.deskew;
+                                toggled => { root.settings-changed(); }
+                            }
+                            Switch {
+                                text: "Whiten paper background";
+                                checked <=> root.whiten;
+                                toggled => { root.settings-changed(); }
+                            }
+                            Switch {
+                                text: "Make text searchable (OCR)";
+                                checked <=> root.ocr;
+                                toggled => { root.settings-changed(); }
+                            }
+                            if root.ocr && !root.ocr-ready : HorizontalLayout {
+                                spacing: 8px;
+                                Text {
+                                    text: "OCR models (12 MB) not installed.";
+                                    color: Theme.warn;
+                                    wrap: word-wrap;
+                                    horizontal-stretch: 1;
+                                    vertical-alignment: center;
+                                }
+                                Button {
+                                    text: "Download";
+                                    clicked => { root.download-models(); }
+                                }
+                            }
+                        }
+
+                        SectionTitle { text: "OUTPUT"; }
+                        Field {
+                            label: "Folder";
+                            HorizontalLayout {
+                                spacing: 6px;
+                                LineEdit {
+                                    horizontal-stretch: 1;
+                                    text <=> root.output-dir;
+                                    edited => { root.settings-changed(); }
+                                }
+                                Button {
+                                    text: "…";
+                                    clicked => { root.browse-output(); }
+                                }
+                            }
+                        }
+                        Field {
+                            label: "Format";
+                            if root.mode == 0 : ComboBox {
+                                model: root.formats;
+                                current-index <=> root.photo-format-index;
+                                selected => { root.settings-changed(); }
+                            }
+                            if root.mode == 1 : ComboBox {
+                                model: root.formats;
+                                current-index <=> root.doc-format-index;
+                                selected => { root.settings-changed(); }
+                            }
+                        }
+                        Field {
+                            label: "JPEG quality: " + Math.round(root.jpeg-quality);
+                            Slider {
+                                minimum: 60;
+                                maximum: 100;
+                                value <=> root.jpeg-quality;
+                                released => { root.settings-changed(); }
+                            }
+                        }
+                        Switch {
+                            text: "16-bit colour (TIFF/PNG/JXL)";
+                            checked <=> root.high-bit-depth;
+                            toggled => { root.settings-changed(); }
+                        }
+                        Field {
+                            label: "File names  ({date} {time} {n} {name})";
+                            LineEdit {
+                                text <=> root.name-pattern;
+                                edited => { root.settings-changed(); }
+                            }
+                        }
+                    }
+                }
+
+                if root.busy : BigButton {
+                    text: "Cancel";
+                    clicked => { root.cancel(); }
+                }
+                if !root.busy : HorizontalLayout {
+                    spacing: 10px;
+                    BigButton {
+                        horizontal-stretch: 1;
+                        text: "Preview";
+                        clicked => { root.do-preview(); }
+                    }
+                    BigButton {
+                        horizontal-stretch: 1;
+                        primary: true;
+                        text: root.mode == 0 ? "Scan photos" : "Scan page";
+                        clicked => { root.do-scan(); }
+                    }
+                }
+            }
+        }
+
+        // ================================== Main area ======================================
+        VerticalLayout {
+            horizontal-stretch: 1;
+
+            // Toolbar
+            Rectangle {
+                height: 46px;
+                background: Theme.bg;
+                HorizontalLayout {
+                    padding-left: 14px;
+                    padding-right: 14px;
+                    padding-top: 8px;
+                    padding-bottom: 8px;
+                    spacing: 4px;
+                    alignment: start;
+                    ToolButton {
+                        text: "Detect photos";
+                        enabled: !root.busy && root.preview-width > 0;
+                        clicked => { root.detect-again(); }
+                    }
+                    ToolButton {
+                        text: "Clear boxes";
+                        enabled: root.boxes.length > 0;
+                        clicked => { root.clear-boxes(); }
+                    }
+                    Rectangle { width: 1px; background: Theme.line; }
+                    ToolButton {
+                        text: "⟲ Rotate";
+                        enabled: root.has-selection;
+                        clicked => { root.turn-selected(-1); }
+                    }
+                    ToolButton {
+                        text: "⟳ Rotate";
+                        enabled: root.has-selection;
+                        clicked => { root.turn-selected(1); }
+                    }
+                    ToolButton {
+                        text: "✕ Delete";
+                        enabled: root.has-selection;
+                        clicked => { root.delete-selected(); }
+                    }
+                    Rectangle { horizontal-stretch: 1; }
+                    Text {
+                        text: root.boxes.length == 0 ? "" : root.boxes.length + (root.boxes.length == 1 ? " area" : " areas");
+                        color: Theme.muted;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+
+            // Canvas
+            canvas := Rectangle {
+                vertical-stretch: 1;
+                background: #0c0e12;
+                clip: true;
+                property <float> cw: self.width / 1px;
+                property <float> ch: self.height / 1px;
+                property <float> pad: 24;
+                property <float> scale: root.preview-width > 0 ? min((cw - 2 * pad) / root.preview-width, (ch - 2 * pad) / root.preview-height) : 1;
+                property <float> ox: (cw - root.preview-width * scale) / 2;
+                property <float> oy: (ch - root.preview-height * scale) / 2;
+
+                if root.preview-width == 0 : VerticalLayout {
+                    alignment: center;
+                    spacing: 10px;
+                    Text {
+                        text: root.mode == 0 ? "Place photos on the glass and press Preview" : "Place a page on the glass (or in the feeder) and press Scan page";
+                        color: Theme.text;
+                        font-size: 18px;
+                        horizontal-alignment: center;
+                    }
+                    Text {
+                        text: root.mode == 0
+                            ? "Tip: a black sheet behind the photos gives the most reliable splitting."
+                            : "Tip: use the document feeder source for multi-page documents.";
+                        color: Theme.muted;
+                        horizontal-alignment: center;
+                    }
+                }
+
+                Image {
+                    x: canvas.ox * 1px;
+                    y: canvas.oy * 1px;
+                    width: root.preview-width * canvas.scale * 1px;
+                    height: root.preview-height * canvas.scale * 1px;
+                    source: root.preview;
+                    image-fit: fill;
+                    image-rendering: smooth;
+                }
+
+                for b in root.boxes : Path {
+                    x: 0;
+                    y: 0;
+                    width: canvas.width;
+                    height: canvas.height;
+                    viewbox-x: 0;
+                    viewbox-y: 0;
+                    viewbox-width: canvas.cw;
+                    viewbox-height: canvas.ch;
+                    stroke: b.selected ? Theme.accent : (b.weak ? Theme.warn : Theme.good);
+                    stroke-width: b.selected ? 2.5px : 2px;
+                    fill: b.selected ? #5aa9ff26 : #3ddc9714;
+                    MoveTo { x: canvas.ox + b.x1 * canvas.scale; y: canvas.oy + b.y1 * canvas.scale; }
+                    LineTo { x: canvas.ox + b.x2 * canvas.scale; y: canvas.oy + b.y2 * canvas.scale; }
+                    LineTo { x: canvas.ox + b.x3 * canvas.scale; y: canvas.oy + b.y3 * canvas.scale; }
+                    LineTo { x: canvas.ox + b.x4 * canvas.scale; y: canvas.oy + b.y4 * canvas.scale; }
+                    Close { }
+                }
+
+                // "Up" markers, labels and handles
+                for b in root.boxes : Rectangle {
+                    x: (canvas.ox + b.ux * canvas.scale) * 1px - 4px;
+                    y: (canvas.oy + b.uy * canvas.scale) * 1px - 4px;
+                    width: 8px;
+                    height: 8px;
+                    border-radius: 4px;
+                    background: b.selected ? Theme.accent : Theme.good;
+                }
+                for b in root.boxes : Rectangle {
+                    x: (canvas.ox + b.tx * canvas.scale) * 1px - self.width / 2;
+                    y: (canvas.oy + b.ty * canvas.scale) * 1px - self.height / 2;
+                    width: 26px;
+                    height: 26px;
+                    border-radius: 13px;
+                    background: b.selected ? Theme.accent : #000000b0;
+                    Text {
+                        text: b.label;
+                        color: b.selected ? #0b1220 : white;
+                        font-weight: 700;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+                for b in root.boxes : Rectangle {
+                    visible: b.selected;
+                    x: (canvas.ox + b.hx * canvas.scale) * 1px - 7px;
+                    y: (canvas.oy + b.hy * canvas.scale) * 1px - 7px;
+                    width: 14px;
+                    height: 14px;
+                    border-radius: 7px;
+                    background: Theme.accent;
+                    border-width: 2px;
+                    border-color: white;
+                }
+                for b in root.boxes : Rectangle {
+                    visible: b.selected;
+                    x: 0;
+                    y: 0;
+                    width: 0;
+                    height: 0;
+                    for c in [{ x: b.x1, y: b.y1 }, { x: b.x2, y: b.y2 }, { x: b.x3, y: b.y3 }, { x: b.x4, y: b.y4 }] : Rectangle {
+                        x: (canvas.ox + c.x * canvas.scale) * 1px - 5px;
+                        y: (canvas.oy + c.y * canvas.scale) * 1px - 5px;
+                        width: 10px;
+                        height: 10px;
+                        background: white;
+                        border-width: 2px;
+                        border-color: Theme.accent;
+                    }
+                }
+
+                ta := TouchArea {
+                    enabled: !root.busy && root.preview-width > 0;
+                    pointer-event(e) => {
+                        if (e.button == PointerEventButton.left && e.kind == PointerEventKind.down) {
+                            focus.focus();
+                            root.canvas-down((self.mouse-x / 1px - canvas.ox) / canvas.scale, (self.mouse-y / 1px - canvas.oy) / canvas.scale, canvas.scale);
+                        } else if (e.button == PointerEventButton.left && e.kind == PointerEventKind.up) {
+                            root.canvas-up();
+                        }
+                    }
+                    moved => {
+                        if (self.pressed) {
+                            root.canvas-move((self.mouse-x / 1px - canvas.ox) / canvas.scale, (self.mouse-y / 1px - canvas.oy) / canvas.scale);
+                        }
+                    }
+                }
+                focus := FocusScope {
+                    key-pressed(e) => {
+                        if (e.text == Key.Delete || e.text == Key.Backspace) {
+                            root.delete-selected();
+                            return accept;
+                        }
+                        if (e.text == "r") { root.turn-selected(1); return accept; }
+                        if (e.text == "R") { root.turn-selected(-1); return accept; }
+                        reject
+                    }
+                }
+
+                if root.busy : Rectangle {
+                    y: parent.height - 6px;
+                    height: 6px;
+                    background: Theme.panel-2;
+                    Rectangle {
+                        x: 0;
+                        width: parent.width * max(0, min(1, root.progress));
+                        background: Theme.accent;
+                        animate width { duration: 150ms; }
+                    }
+                }
+            }
+
+            // Status + results
+            Rectangle {
+                height: root.results.length > 0 ? 190px : 40px;
+                background: Theme.panel;
+                Rectangle { y: 0; height: 1px; background: Theme.line; }
+                VerticalLayout {
+                    padding: 10px;
+                    padding-left: 14px;
+                    padding-right: 14px;
+                    spacing: 8px;
+                    HorizontalLayout {
+                        spacing: 10px;
+                        height: 22px;
+                        if root.busy : Spinner {
+                            width: 18px;
+                            height: 18px;
+                            indeterminate: true;
+                        }
+                        Text {
+                            text: root.status;
+                            color: Theme.text;
+                            vertical-alignment: center;
+                            overflow: elide;
+                            horizontal-stretch: 1;
+                        }
+                        Text {
+                            text: root.hint;
+                            color: Theme.muted;
+                            vertical-alignment: center;
+                        }
+                        if root.pending-pages > 0 : Button {
+                            text: "Save PDF (" + root.pending-pages + (root.pending-pages == 1 ? " page)" : " pages)");
+                            primary: true;
+                            enabled: !root.busy;
+                            clicked => { root.save-document(); }
+                        }
+                        if root.pending-pages > 0 : Button {
+                            text: "Discard pages";
+                            enabled: !root.busy;
+                            clicked => { root.clear-pages(); }
+                        }
+                        if root.results.length > 0 : Button {
+                            text: "Open folder";
+                            clicked => { root.open-output(); }
+                        }
+                    }
+                    if root.results.length > 0 : ScrollView {
+                        vertical-stretch: 1;
+                        content-width: max(self.width, root.results.length * 148px);
+                        content-height: self.height;
+                        HorizontalLayout {
+                            spacing: 8px;
+                            alignment: start;
+                            for r[i] in root.results : Rectangle {
+                                width: 140px;
+                                border-radius: 8px;
+                                background: rta.has-hover ? Theme.panel-2 : Theme.bg;
+                                rta := TouchArea {
+                                    double-clicked => { root.result-open(i); }
+                                }
+                                VerticalLayout {
+                                    padding: 6px;
+                                    spacing: 4px;
+                                    Image {
+                                        source: r.image;
+                                        image-fit: contain;
+                                        vertical-stretch: 1;
+                                    }
+                                    HorizontalLayout {
+                                        Text {
+                                            text: r.label;
+                                            color: Theme.muted;
+                                            font-size: 10px;
+                                            overflow: elide;
+                                            horizontal-stretch: 1;
+                                            vertical-alignment: center;
+                                        }
+                                        if rta.has-hover : ToolButton {
+                                            text: "⟳";
+                                            height: 20px;
+                                            min-width: 20px;
+                                            clicked => { root.result-rotate(i); }
+                                        }
+                                        if rta.has-hover : ToolButton {
+                                            text: "✕";
+                                            height: 20px;
+                                            min-width: 20px;
+                                            clicked => { root.result-delete(i); }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

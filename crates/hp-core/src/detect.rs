@@ -391,16 +391,16 @@ fn background_surface(lab: &Lab, excl: &Mask, fallback: (f32, f32, f32), cell: u
             let x1 = (x0 + 1).min(gw - 1);
             let tx = (fx - x0 as f64) as f32;
             let i = y * w + x;
-            for k in 0..3 {
-                let a = grid[y0 * gw + x0][k] * (1.0 - tx) + grid[y0 * gw + x1][k] * tx;
-                let b = grid[y1 * gw + x0][k] * (1.0 - tx) + grid[y1 * gw + x1][k] * tx;
-                let v = a * (1.0 - ty) + b * ty;
-                match k {
-                    0 => out.l.data[i] = v,
-                    1 => out.a.data[i] = v,
-                    _ => out.b.data[i] = v,
-                }
-            }
+            let (g00, g10) = (grid[y0 * gw + x0], grid[y0 * gw + x1]);
+            let (g01, g11) = (grid[y1 * gw + x0], grid[y1 * gw + x1]);
+            let lerp = |k: usize| {
+                let a = g00[k] * (1.0 - tx) + g10[k] * tx;
+                let b = g01[k] * (1.0 - tx) + g11[k] * tx;
+                a * (1.0 - ty) + b * ty
+            };
+            out.l.data[i] = lerp(0);
+            out.a.data[i] = lerp(1);
+            out.b.data[i] = lerp(2);
         }
     }
     out
@@ -445,23 +445,25 @@ fn process_component(ctx: &Ctx, comp: &[usize], depth: usize, out: &mut Vec<(Rot
     }
     let rectangularity = comp.len() as f64 / rect.area();
 
-    if ctx.split && rectangularity < 0.88 && depth < 3 {
-        if let Some(parts) = try_split(ctx, comp) {
-            let part_rects: Vec<f64> = parts
-                .iter()
-                .filter_map(|p| {
-                    let pr = min_area_rect(&boundary_points(ctx, p))?;
-                    (pr.w.min(pr.h) >= ctx.min_side_px).then(|| p.len() as f64 / pr.area())
-                })
-                .collect();
-            let big_parts = part_rects.len();
-            let mean_rect = part_rects.iter().sum::<f64>() / big_parts.max(1) as f64;
-            if big_parts >= 2 && mean_rect > rectangularity + 0.04 {
-                for p in parts {
-                    process_component(ctx, &p, depth + 1, out);
-                }
-                return;
+    if ctx.split
+        && rectangularity < 0.88
+        && depth < 3
+        && let Some(parts) = try_split(ctx, comp)
+    {
+        let part_rects: Vec<f64> = parts
+            .iter()
+            .filter_map(|p| {
+                let pr = min_area_rect(&boundary_points(ctx, p))?;
+                (pr.w.min(pr.h) >= ctx.min_side_px).then(|| p.len() as f64 / pr.area())
+            })
+            .collect();
+        let big_parts = part_rects.len();
+        let mean_rect = part_rects.iter().sum::<f64>() / big_parts.max(1) as f64;
+        if big_parts >= 2 && mean_rect > rectangularity + 0.04 {
+            for p in parts {
+                process_component(ctx, &p, depth + 1, out);
             }
+            return;
         }
     }
 

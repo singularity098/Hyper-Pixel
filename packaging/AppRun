@@ -1,0 +1,10 @@
+#!/bin/sh
+# Hyper Pixel AppImage entry point.
+HERE="$(dirname "$(readlink -f "$0")")"
+export APPDIR="${APPDIR:-$HERE}"
+# Command-line tool: `Hyper_Pixel.AppImage cli <args>`
+if [ "$1" = "cli" ]; then
+    shift
+    exec "$HERE/usr/bin/hyper-pixel-cli" "$@"
+fi
+exec "$HERE/usr/bin/hyper-pixel" "$@"

@@ -263,11 +263,14 @@ pub fn render_scene(p: &SceneParams) -> Scene {
                         let d = Point::new(pm.x - ph.rect.cx, pm.y - ph.rect.cy);
                         let u = d.x * ux.x + d.y * ux.y + ph.rect.w / 2.0;
                         let v = d.x * uy.x + d.y * uy.y + ph.rect.h / 2.0;
-                        if u >= 0.0 && v >= 0.0 && u <= ph.rect.w && v <= ph.rect.h {
-                            if let Some(c) = ph.color(u, v) {
-                                col = Some(c);
-                                break;
-                            }
+                        if u >= 0.0
+                            && v >= 0.0
+                            && u <= ph.rect.w
+                            && v <= ph.rect.h
+                            && let Some(c) = ph.color(u, v)
+                        {
+                            col = Some(c);
+                            break;
                         }
                         // Light lid: a thin shadow line around prints.
                         let ou = if u < 0.0 {

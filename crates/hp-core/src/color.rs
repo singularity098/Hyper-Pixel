@@ -1,3 +1,4 @@
+#![allow(clippy::excessive_precision)] // published Oklab matrices
 //! Automatic colour correction and faded-photo restoration.
 //!
 //! All operations preserve bit depth (8 or 16 bit). Statistics are gathered on a

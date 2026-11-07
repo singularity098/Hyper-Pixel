@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: System packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsane1 sane-utils libfontconfig-dev libxkbcommon-dev
+          # Enable SANE's virtual "test" scanner for the integration test.
+          sudo sed -i 's/^#test$/test/' /etc/sane.d/dll.conf
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo test --workspace --release --locked
+      - name: Detector benchmark (synthetic)
+        run: cargo run --release --locked -p hp-cli -- eval-synth --n 100 --dpi 75
+
+  appimage:
+    needs: check
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: System packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfontconfig-dev libxkbcommon-dev
+      - name: Build AppImage
+        run: ./packaging/build-appimage.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Hyper-Pixel-AppImage
+          path: dist/*.AppImage
+      - name: Publish continuous build
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete continuous --yes --cleanup-tag || true
+          gh release create continuous dist/*.AppImage --prerelease --target "$GITHUB_SHA" \
+            --title "Continuous build" --notes "Latest build of main ($GITHUB_SHA). Download the AppImage, make it executable and run it."
+      - name: Publish tagged release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create "$GITHUB_REF_NAME" dist/*.AppImage --title "Hyper Pixel $GITHUB_REF_NAME" --generate-notes
