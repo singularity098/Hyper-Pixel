@@ -30,6 +30,12 @@ fn main() {
             &DetectParams::default(),
         );
         let det: Vec<_> = rep.photos.iter().map(|d| d.rect).collect();
+        // HP_SCENES=<dir>: also save each raw scene and its truth, for `hyper-pixel-cli eval`.
+        if let Ok(dir) = std::env::var("HP_SCENES") {
+            let _ = scene.image.save(format!("{dir}/scene_{seed}.png"));
+            let truth = serde_json::json!({ "dpi": dpi, "photos": scene.truth });
+            let _ = std::fs::write(format!("{dir}/scene_{seed}.json"), truth.to_string());
+        }
         let before = ev.stats().perfect_scenes;
         ev.add(&scene.truth, &det);
         if ev.stats().perfect_scenes == before && std::env::var("HP_DUMP").is_ok() {

@@ -56,10 +56,11 @@ impl Default for Settings {
             device: String::new(),
             mode: Mode::Photos,
             // CanoScan LiDE 400: 600 dpi captures everything a photo print holds; 300 dpi
-            // is the sweet spot for text/OCR. 75 dpi previews take ~4 s.
+            // is the sweet spot for text/OCR. Previews at 150 dpi are still quick and show
+            // the thin gaps between touching prints, which 75 dpi does not.
             photo_dpi: 600.0,
             doc_dpi: 300.0,
-            preview_dpi: 75.0,
+            preview_dpi: PREVIEW_DPI,
             photo_color: PhotoColor::Color,
             source: String::new(),
             background: BackgroundHint::Auto,
@@ -88,12 +89,21 @@ fn path() -> Option<PathBuf> {
     )
 }
 
+/// Default preview resolution.
+const PREVIEW_DPI: f64 = 150.0;
+/// Preview resolution saved by older versions as their default (not user-adjustable then).
+const OLD_PREVIEW_DPI: f64 = 75.0;
+
 impl Settings {
     pub fn load() -> Self {
-        path()
+        let mut s: Settings = path()
             .and_then(|p| std::fs::read_to_string(p).ok())
             .and_then(|s| serde_json::from_str(&s).ok())
-            .unwrap_or_default()
+            .unwrap_or_default();
+        if s.preview_dpi == OLD_PREVIEW_DPI {
+            s.preview_dpi = PREVIEW_DPI;
+        }
+        s
     }
 
     pub fn save(&self) {
