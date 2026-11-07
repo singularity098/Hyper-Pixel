@@ -59,7 +59,8 @@ enum Cmd {
         /// Also write <input>.overlay.png showing detections.
         #[arg(long)]
         overlay: bool,
-        /// Write <input>.json with detections (a starting point for ground truth).
+        /// Write <input>.json with detections (a starting point for ground truth); an existing
+        /// file is left alone.
         #[arg(long)]
         write_truth: bool,
     },
@@ -74,7 +75,12 @@ enum Cmd {
         gap: f64,
     },
     /// Score the detector on a corpus directory of `<name>.<img>` + `<name>.json` pairs.
-    Eval { dir: PathBuf },
+    Eval {
+        dir: PathBuf,
+        /// Downscale each scan to this resolution first (simulates a low-dpi preview).
+        #[arg(long)]
+        at_dpi: Option<f64>,
+    },
     /// Run OCR on images; writes a searchable PDF and prints the text.
     Ocr {
         inputs: Vec<PathBuf>,
@@ -186,10 +192,13 @@ fn main() -> Result<()> {
                         dpi,
                         photos: rep.photos.iter().map(|d| d.rect).collect(),
                     };
-                    std::fs::write(
-                        input.with_extension("json"),
-                        serde_json::to_string_pretty(&t)?,
-                    )?;
+                    // Never clobber a (possibly hand-corrected) ground-truth file.
+                    let json = input.with_extension("json");
+                    if json.exists() {
+                        log::warn!("{} exists, not overwriting it", json.display());
+                    } else {
+                        std::fs::write(&json, serde_json::to_string_pretty(&t)?)?;
+                    }
                 }
                 let regions: Vec<PhotoRegion> = rep
                     .photos
@@ -255,7 +264,7 @@ fn main() -> Result<()> {
             }
             println!("{}", serde_json::to_string_pretty(ev.stats())?);
         }
-        Cmd::Eval { dir } => {
+        Cmd::Eval { dir, at_dpi } => {
             let mut ev = Evaluator::new();
             let mut entries: Vec<_> = std::fs::read_dir(&dir)?
                 .filter_map(|e| e.ok())
@@ -274,18 +283,44 @@ fn main() -> Result<()> {
                 }) else {
                     continue;
                 };
-                let img = image::open(img_path)?;
-                let rep =
-                    detect_photos(&img, ScanGeometry::new(truth.dpi), &DetectParams::default());
+                let mut img = image::open(img_path)?;
+                let mut dpi = truth.dpi;
+                if let Some(target) = at_dpi.filter(|&d| d < truth.dpi) {
+                    let s = target / truth.dpi;
+                    let orig_w = img.width() as f64;
+                    img = img.resize_exact(
+                        (img.width() as f64 * s).round() as u32,
+                        (img.height() as f64 * s).round() as u32,
+                        image::imageops::FilterType::Triangle,
+                    );
+                    dpi = truth.dpi * img.width() as f64 / orig_w;
+                }
+                let t0 = std::time::Instant::now();
+                let rep = detect_photos(&img, ScanGeometry::new(dpi), &DetectParams::default());
+                log::info!("detected in {} ms", t0.elapsed().as_millis());
                 let det: Vec<_> = rep.photos.iter().map(|d| d.rect).collect();
                 let before = ev.stats().perfect_scenes;
                 ev.add(&truth.photos, &det);
                 let ok = ev.stats().perfect_scenes > before;
                 println!(
-                    "{} {}",
+                    "{} {} ({} truth, {} detected)",
                     if ok { "ok  " } else { "FAIL" },
-                    img_path.display()
+                    img_path.display(),
+                    truth.photos.len(),
+                    det.len()
                 );
+                for (i, t) in truth.photos.iter().enumerate() {
+                    let best = det
+                        .iter()
+                        .map(|d| (t.iou(d), hp_core::eval::corner_error(t, d)))
+                        .max_by(|a, b| a.0.total_cmp(&b.0));
+                    match best {
+                        Some((iou, ce)) => {
+                            println!("    photo {i}: IoU {iou:.4}, worst corner {ce:.2} mm")
+                        }
+                        None => println!("    photo {i}: not detected"),
+                    }
+                }
             }
             println!("{}", serde_json::to_string_pretty(ev.stats())?);
         }

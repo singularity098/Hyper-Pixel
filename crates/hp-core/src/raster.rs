@@ -138,6 +138,32 @@ pub fn rgb_to_lab(r: f32, g: f32, b: f32) -> (f32, f32, f32) {
     (116.0 * fy - 16.0, 500.0 * (fx - fy), 200.0 * (fy - fz))
 }
 
+/// CIE Lab (D65) back to sRGB (0..1, not clamped). Inverse of [`rgb_to_lab`].
+pub fn lab_to_rgb(l: f32, a: f32, b: f32) -> (f32, f32, f32) {
+    let fy = (l + 16.0) / 116.0;
+    let fx = fy + a / 500.0;
+    let fz = fy - b / 200.0;
+    let inv = |f: f32| {
+        if f > 0.206_893 {
+            f * f * f
+        } else {
+            (f - 16.0 / 116.0) / 7.787
+        }
+    };
+    let (x, y, z) = (inv(fx) * 0.95047, inv(fy), inv(fz) * 1.08883);
+    let r = 3.240_454 * x - 1.537_138_5 * y - 0.498_531_4 * z;
+    let g = -0.969_266 * x + 1.876_010_8 * y + 0.041_556 * z;
+    let bb = 0.055_643_4 * x - 0.204_025_9 * y + 1.057_225_2 * z;
+    let enc = |c: f32| {
+        if c <= 0.003_130_8 {
+            12.92 * c
+        } else {
+            1.055 * c.max(0.0).powf(1.0 / 2.4) - 0.055
+        }
+    };
+    (enc(r), enc(g), enc(bb))
+}
+
 /// Downscale `img` by `scale` (<= 1) and convert to Lab planes.
 pub fn lab_planes(img: &DynamicImage, scale: f64) -> Lab {
     let w = ((img.width() as f64 * scale).round() as u32).max(1);
@@ -403,6 +429,20 @@ pub fn draw_rects(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn lab_round_trip() {
+        for &(r, g, b) in &[
+            (0.0, 0.0, 0.0),
+            (1.0, 1.0, 1.0),
+            (0.2, 0.5, 0.8),
+            (0.9, 0.1, 0.3),
+        ] {
+            let (l, a, bb) = rgb_to_lab(r, g, b);
+            let (r2, g2, b2) = lab_to_rgb(l, a, bb);
+            assert!((r - r2).abs() < 1e-3 && (g - g2).abs() < 1e-3 && (b - b2).abs() < 1e-3);
+        }
+    }
 
     #[test]
     fn fill_holes_and_components() {

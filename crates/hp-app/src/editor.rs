@@ -1,6 +1,7 @@
 //! Interactive crop-box editing (move / resize / rotate / draw), independent of the UI
 //! toolkit so it can be unit tested. All coordinates are bed millimetres.
 
+use hp_core::geom::{clip_convex, polygon_area};
 use hp_core::{Point, RotatedRect};
 
 const MIN_SIZE_MM: f64 = 5.0;
@@ -290,26 +291,44 @@ impl Editor {
 }
 
 /// Replace un-edited boxes with better matching detections (from the final scan).
+///
+/// If the final scan finds several photos inside one un-edited box, the box is replaced by
+/// all of them: touching prints can merge at preview resolution, where the seam between
+/// them is thinner than a pixel.
 pub fn refine_boxes(boxes: &[CropBox], detections: &[RotatedRect]) -> Vec<CropBox> {
-    boxes
-        .iter()
-        .map(|b| {
-            if b.edited {
-                return b.clone();
-            }
-            let best = detections
-                .iter()
-                .map(|d| (d, d.iou(&b.rect)))
-                .max_by(|a, b| a.1.total_cmp(&b.1));
-            match best {
-                Some((d, iou)) if iou > 0.8 => CropBox {
-                    rect: *d,
-                    ..b.clone()
-                },
-                _ => b.clone(),
-            }
-        })
-        .collect()
+    let mut out = Vec::with_capacity(boxes.len());
+    for b in boxes {
+        if b.edited {
+            out.push(b.clone());
+            continue;
+        }
+        let inside: Vec<&RotatedRect> = detections
+            .iter()
+            .filter(|d| {
+                let inter = polygon_area(&clip_convex(&d.corners(), &b.rect.corners()));
+                inter > 0.85 * d.area() && d.area() > 0.1 * b.rect.area()
+            })
+            .collect();
+        if inside.len() >= 2 {
+            out.extend(inside.into_iter().map(|d| CropBox {
+                rect: *d,
+                ..b.clone()
+            }));
+            continue;
+        }
+        let best = detections
+            .iter()
+            .map(|d| (d, d.iou(&b.rect)))
+            .max_by(|a, b| a.1.total_cmp(&b.1));
+        out.push(match best {
+            Some((d, iou)) if iou > 0.8 => CropBox {
+                rect: *d,
+                ..b.clone()
+            },
+            _ => b.clone(),
+        });
+    }
+    out
 }
 
 #[cfg(test)]
@@ -382,5 +401,17 @@ mod tests {
         assert_eq!(refine_boxes(&e.boxes, &[better])[0].rect, better);
         e.boxes[0].edited = true;
         assert_ne!(refine_boxes(&e.boxes, &[better])[0].rect, better);
+    }
+
+    #[test]
+    fn refine_splits_merged_box() {
+        // Preview saw one 40×20 box; the final scan finds two touching 20×20 photos in it.
+        let e = ed();
+        let left = RotatedRect::new(40.1, 50.0, 19.8, 19.9, 0.0);
+        let right = RotatedRect::new(60.0, 50.0, 19.9, 19.9, 0.2);
+        let out = refine_boxes(&e.boxes, &[left, right]);
+        assert_eq!(out.len(), 2);
+        assert_eq!(out[0].rect, left);
+        assert_eq!(out[1].rect, right);
     }
 }
