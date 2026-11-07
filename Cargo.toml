@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/hp-core"]
+members = ["crates/hp-core", "crates/hp-scan"]
 
 
 [workspace.package]

@@ -1,0 +1,17 @@
+[package]
+name = "hp-scan"
+description = "Scanner access for Hyper Pixel (runtime-loaded SANE + demo devices)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+hp-core.workspace = true
+image.workspace = true
+thiserror.workspace = true
+log.workspace = true
+libloading = "0.9"
+
+[[example]]
+name = "sane_probe"
