@@ -213,6 +213,8 @@ impl App {
         );
         ui.set_jpeg_quality(s.jpeg_quality as f32);
         ui.set_high_bit_depth(s.high_bit_depth);
+        ui.set_magnifier(s.magnifier);
+        ui.set_loupe_zoom(s.loupe_zoom.clamp(2.0, 16.0) as f32);
         ui.set_name_pattern(s.name_pattern.clone().into());
         self.push_caps();
     }
@@ -280,6 +282,8 @@ impl App {
             .unwrap_or(ImageFormat::Pdf);
         s.jpeg_quality = ui.get_jpeg_quality().round().clamp(1.0, 100.0) as u8;
         s.high_bit_depth = ui.get_high_bit_depth();
+        s.magnifier = ui.get_magnifier();
+        s.loupe_zoom = ui.get_loupe_zoom() as f64;
         s.name_pattern = ui.get_name_pattern().to_string();
         if let Some(src) = self.caps.sources.get(ui.get_source_index() as usize) {
             s.source = src.clone();
@@ -911,6 +915,7 @@ fn wire(ui: &MainWindow) {
             let p = a.display_to_mm(x as f64, y as f64);
             let ppm = a.display_ppm() * scale as f64; // screen px per mm
             a.editor.pointer_down(p, 9.0 / ppm, 8.0);
+            a.ui().set_loupe_active(a.editor.is_placing_point());
             a.push_boxes();
         });
     });
@@ -927,8 +932,22 @@ fn wire(ui: &MainWindow) {
             }
         });
     });
+    ui.on_canvas_hover(|x, y, scale| {
+        with_app(|a| {
+            if a.preview.is_none() {
+                return;
+            }
+            let p = a.display_to_mm(x as f64, y as f64);
+            let ppm = a.display_ppm() * scale as f64;
+            let near = a.editor.is_placing_point() || a.editor.corner_near(p, 9.0 / ppm);
+            if a.ui().get_loupe_active() != near {
+                a.ui().set_loupe_active(near);
+            }
+        });
+    });
     ui.on_canvas_up(|| {
         with_app(|a| {
+            a.ui().set_loupe_active(false);
             if a.editor.pointer_up() {
                 a.push_boxes();
             }

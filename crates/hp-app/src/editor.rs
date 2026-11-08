@@ -96,6 +96,19 @@ impl Editor {
         self.boxes.iter_mut().find(|b| b.id == id)
     }
 
+    /// True while a drag places a point precisely (a corner, or a new box's far corner):
+    /// the UI then shows its magnifier.
+    pub fn is_placing_point(&self) -> bool {
+        matches!(self.drag, Drag::Corner { .. } | Drag::Create { .. })
+    }
+
+    /// True if `p` is within `tol` mm of a box corner that `pointer_down` would grab.
+    pub fn corner_near(&self, p: Point, tol: f64) -> bool {
+        self.boxes
+            .iter()
+            .any(|b| b.rect.corners().iter().any(|c| c.dist(p) <= tol))
+    }
+
     /// Pointer pressed at `p`. `tol` is the grab tolerance in mm, `handle_offset` the
     /// rotation handle distance in mm.
     pub fn pointer_down(&mut self, p: Point, tol: f64, handle_offset: f64) {
@@ -339,6 +352,27 @@ mod tests {
         let mut e = Editor::default();
         e.set_detections([(RotatedRect::new(50.0, 50.0, 40.0, 20.0, 0.0), 1.0)]);
         e
+    }
+
+    #[test]
+    fn magnifier_state() {
+        let mut e = ed();
+        let c = e.boxes[0].rect.corners()[0];
+        assert!(e.corner_near(Point::new(c.x + 1.0, c.y), 2.0));
+        assert!(!e.corner_near(Point::new(c.x + 5.0, c.y + 5.0), 2.0));
+        assert!(!e.is_placing_point());
+        e.pointer_down(c, 2.0, 8.0);
+        assert!(e.is_placing_point());
+        e.pointer_up();
+        assert!(!e.is_placing_point());
+        // Moving a whole box is not a precise placement.
+        let r = e.boxes[0].rect;
+        e.pointer_down(Point::new(r.cx, r.cy), 2.0, 8.0);
+        assert!(!e.is_placing_point());
+        e.pointer_up();
+        // Drawing a new box is.
+        e.pointer_down(Point::new(300.0, 300.0), 2.0, 8.0);
+        assert!(e.is_placing_point());
     }
 
     #[test]

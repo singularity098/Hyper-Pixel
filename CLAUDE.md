@@ -35,6 +35,9 @@ up to 4800 dpi). Defaults are tuned for it.
 - `RotatedRect` angles are in degrees, clockwise on screen (y points down), and
   normalised to (-45, 45].
 - Debug builds compile dependencies with opt-level 3 so image code stays usable.
+- Corner magnifier: the canvas shows a loupe (`Loupe` in `app.slint`) beside the pointer when it
+  is on a box corner, while dragging a corner or drawing a box (`Editor::is_placing_point`), or
+  while Shift is held. The mouse wheel sets its zoom (2–16×). Both settings are persisted.
 - Preview default is 150 dpi (thin seams between touching prints vanish at 75 dpi). A saved
   75 from older versions is migrated on load.
 

@@ -113,6 +113,103 @@ component ToolButton inherits Rectangle {
     }
 }
 
+// Magnifier shown next to the pointer while placing crop-box corners. Draws the preview and
+// the box outlines around preview-image point (px, py) at `s` loupe pixels per image pixel.
+component Loupe inherits Rectangle {
+    in property <image> source;
+    in property <float> image-width;
+    in property <float> image-height;
+    in property <[CropBoxUi]> boxes;
+    in property <float> px;
+    in property <float> py;
+    in property <float> s;
+    in property <float> zoom;
+    property <float> size: self.width / 1px;
+    property <float> c: size / 2;
+    border-radius: 14px;
+    drop-shadow-blur: 18px;
+    drop-shadow-color: #000000c0;
+    background: #0c0e12;
+
+    Rectangle {
+        border-radius: root.border-radius;
+        clip: true;
+        Image {
+            x: (root.c - root.px * root.s) * 1px;
+            y: (root.c - root.py * root.s) * 1px;
+            width: root.image-width * root.s * 1px;
+            height: root.image-height * root.s * 1px;
+            source: root.source;
+            image-fit: fill;
+            // Beyond ~6 screen px per scanned pixel, show the real pixels rather than a blur.
+            image-rendering: root.s >= 6 ? ImageRendering.pixelated : ImageRendering.smooth;
+        }
+        for b in root.boxes : Path {
+            width: parent.width;
+            height: parent.height;
+            viewbox-x: 0;
+            viewbox-y: 0;
+            viewbox-width: root.size;
+            viewbox-height: root.size;
+            stroke: b.selected ? Theme.accent : (b.weak ? Theme.warn : Theme.good);
+            stroke-width: 1.5px;
+            MoveTo { x: root.c + (b.x1 - root.px) * root.s; y: root.c + (b.y1 - root.py) * root.s; }
+            LineTo { x: root.c + (b.x2 - root.px) * root.s; y: root.c + (b.y2 - root.py) * root.s; }
+            LineTo { x: root.c + (b.x3 - root.px) * root.s; y: root.c + (b.y3 - root.py) * root.s; }
+            LineTo { x: root.c + (b.x4 - root.px) * root.s; y: root.c + (b.y4 - root.py) * root.s; }
+            Close { }
+        }
+        // Crosshair with an open centre so the target pixel stays visible. Each arm is a
+        // white line on a dark halo, readable on both light and dark photos.
+        for arm in [
+            { x: 0, y: root.c - 0.5, w: root.c - 5, h: 1 },
+            { x: root.c + 5, y: root.c - 0.5, w: root.c - 5, h: 1 },
+            { x: root.c - 0.5, y: 0, w: 1, h: root.c - 5 },
+            { x: root.c - 0.5, y: root.c + 5, w: 1, h: root.c - 5 },
+        ] : Rectangle {
+            x: arm.x * 1px;
+            y: arm.y * 1px;
+            width: arm.w * 1px;
+            height: arm.h * 1px;
+            Rectangle {
+                x: -1px;
+                y: -1px;
+                width: parent.width + 2px;
+                height: parent.height + 2px;
+                background: #00000090;
+                Rectangle {
+                    x: 1px;
+                    y: 1px;
+                    width: parent.width - 2px;
+                    height: parent.height - 2px;
+                    background: white;
+                }
+            }
+        }
+        Rectangle {
+            x: parent.width - self.width - 8px;
+            y: parent.height - self.height - 8px;
+            width: zoom-text.preferred-width + 12px;
+            height: 20px;
+            border-radius: 10px;
+            background: #000000b0;
+            zoom-text := Text {
+                text: Math.round(root.zoom * 10) / 10 + "×";
+                color: white;
+                font-size: 11px;
+                font-weight: 700;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+    }
+    Rectangle {
+        border-radius: root.border-radius;
+        border-width: 2px;
+        border-color: Theme.accent;
+    }
+}
+
 export component MainWindow inherits Window {
     title: "Hyper Pixel";
     icon: @image-url("../../../assets/hyper-pixel.png");
@@ -160,6 +257,10 @@ export component MainWindow inherits Window {
     in property <float> preview-height;
     in property <[CropBoxUi]> boxes;
     in property <bool> has-selection;
+    // Pointer is on (or dragging) a crop-box corner: show the magnifier.
+    in property <bool> loupe-active;
+    in-out property <bool> magnifier: true;
+    in-out property <float> loupe-zoom: 4;
     in property <bool> busy;
     in property <float> progress;
     in property <string> status: "Ready";
@@ -176,6 +277,7 @@ export component MainWindow inherits Window {
     callback canvas-down(float, float, float);
     callback canvas-move(float, float);
     callback canvas-up();
+    callback canvas-hover(float, float, float);
     callback delete-selected();
     callback turn-selected(int);
     callback clear-boxes();
@@ -303,6 +405,11 @@ export component MainWindow inherits Window {
                             Switch {
                                 text: "Find & split photos automatically";
                                 checked <=> root.auto-detect;
+                                toggled => { root.settings-changed(); }
+                            }
+                            Switch {
+                                text: "Magnifier at corners (Shift: always)";
+                                checked <=> root.magnifier;
                                 toggled => { root.settings-changed(); }
                             }
                             Field {
@@ -492,6 +599,12 @@ export component MainWindow inherits Window {
                 property <float> scale: root.preview-width > 0 ? min((cw - 2 * pad) / root.preview-width, (ch - 2 * pad) / root.preview-height) : 1;
                 property <float> ox: (cw - root.preview-width * scale) / 2;
                 property <float> oy: (ch - root.preview-height * scale) / 2;
+                // Pointer position in canvas pixels, and the magnifier state.
+                property <float> mx: ta.mouse-x / 1px;
+                property <float> my: ta.mouse-y / 1px;
+                property <bool> shift-held;
+                property <bool> show-loupe: root.magnifier && root.preview-width > 0 && !root.busy
+                    && (ta.has-hover || ta.pressed) && (root.loupe-active || shift-held);
 
                 if root.preview-width == 0 : VerticalLayout {
                     alignment: center;
@@ -594,7 +707,12 @@ export component MainWindow inherits Window {
 
                 ta := TouchArea {
                     enabled: !root.busy && root.preview-width > 0;
+                    mouse-cursor: canvas.show-loupe ? MouseCursor.crosshair : MouseCursor.default;
                     pointer-event(e) => {
+                        if (e.kind == PointerEventKind.move) {
+                            canvas.shift-held = e.modifiers.shift;
+                            root.canvas-hover((self.mouse-x / 1px - canvas.ox) / canvas.scale, (self.mouse-y / 1px - canvas.oy) / canvas.scale, canvas.scale);
+                        }
                         if (e.button == PointerEventButton.left && e.kind == PointerEventKind.down) {
                             focus.focus();
                             root.canvas-down((self.mouse-x / 1px - canvas.ox) / canvas.scale, (self.mouse-y / 1px - canvas.oy) / canvas.scale, canvas.scale);
@@ -607,6 +725,34 @@ export component MainWindow inherits Window {
                             root.canvas-move((self.mouse-x / 1px - canvas.ox) / canvas.scale, (self.mouse-y / 1px - canvas.oy) / canvas.scale);
                         }
                     }
+                    // Mouse wheel over the magnifier changes its zoom.
+                    scroll-event(e) => {
+                        if (!canvas.show-loupe || e.delta-y == 0) {
+                            return reject;
+                        }
+                        // One wheel notch (60 px) is 1.25×; touchpads send many small deltas.
+                        root.loupe-zoom = max(2, min(16, root.loupe-zoom * Math.pow(1.25, max(-1, min(1, e.delta-y / 60px)))));
+                        root.settings-changed();
+                        accept
+                    }
+                }
+
+                if canvas.show-loupe : Loupe {
+                    property <float> gap: 28;
+                    property <float> sz: min(220, min(canvas.cw, canvas.ch) / 2);
+                    // Up and to the right of the pointer; flipped when that leaves the canvas.
+                    x: max(0, canvas.mx + gap + sz <= canvas.cw ? canvas.mx + gap : canvas.mx - gap - sz) * 1px;
+                    y: max(0, min(canvas.ch - sz, canvas.my - gap - sz >= 0 ? canvas.my - gap - sz : canvas.my + gap)) * 1px;
+                    width: sz * 1px;
+                    height: sz * 1px;
+                    source: root.preview;
+                    image-width: root.preview-width;
+                    image-height: root.preview-height;
+                    boxes: root.boxes;
+                    px: (canvas.mx - canvas.ox) / canvas.scale;
+                    py: (canvas.my - canvas.oy) / canvas.scale;
+                    s: canvas.scale * root.loupe-zoom;
+                    zoom: root.loupe-zoom;
                 }
                 focus := FocusScope {
                     key-pressed(e) => {
@@ -614,8 +760,13 @@ export component MainWindow inherits Window {
                             root.delete-selected();
                             return accept;
                         }
+                        if (e.text == Key.Shift) { canvas.shift-held = true; return reject; }
                         if (e.text == "r") { root.turn-selected(1); return accept; }
                         if (e.text == "R") { root.turn-selected(-1); return accept; }
+                        reject
+                    }
+                    key-released(e) => {
+                        if (e.text == Key.Shift) { canvas.shift-held = false; }
                         reject
                     }
                 }
