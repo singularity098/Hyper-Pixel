@@ -307,11 +307,14 @@ export component MainWindow inherits Window {
                 spacing: 14px;
 
                 HorizontalLayout {
-                    spacing: 10px;
+                    spacing: 14px;
+                    // The SVG is rasterised by Slint at the displayed size (and scale factor);
+                    // shrinking the 512 px PNG this far aliased badly.
                     Image {
-                        source: @image-url("../../../assets/hyper-pixel.png");
-                        width: 34px;
-                        height: 34px;
+                        source: @image-url("../../../assets/hyper-pixel.svg");
+                        width: 68px;
+                        height: 68px;
+                        image-rendering: smooth;
                     }
                     VerticalLayout {
                         alignment: center;
