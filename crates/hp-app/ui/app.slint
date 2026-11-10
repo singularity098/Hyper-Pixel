@@ -95,6 +95,7 @@ component ToolButton inherits Rectangle {
     callback clicked;
     height: 30px;
     min-width: 34px;
+    horizontal-stretch: 0;
     border-radius: 6px;
     background: ta.has-hover && root.enabled ? Theme.panel-2 : transparent;
     HorizontalLayout {
@@ -110,6 +111,77 @@ component ToolButton inherits Rectangle {
     ta := TouchArea {
         enabled: root.enabled;
         clicked => { root.clicked(); }
+    }
+}
+
+// Title-bar button of the custom window frame. kind: 0 minimise, 1 maximise, 2 restore, 3 close.
+// Close turns red only on hover.
+component WindowButton inherits Rectangle {
+    in property <int> kind;
+    in property <string> label;
+    callback clicked;
+    width: 40px;
+    height: 30px;
+    border-radius: 6px;
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-action-default => { root.clicked(); }
+    background: !ta.has-hover ? transparent : root.kind == 3 ? (ta.pressed ? #e85a5a : Theme.danger) : (ta.pressed ? Theme.line : Theme.panel-2);
+    property <brush> ink: ta.has-hover ? (root.kind == 3 ? Theme.bg : Theme.text) : Theme.muted;
+    Path {
+        width: 12px;
+        height: 12px;
+        viewbox-width: 12;
+        viewbox-height: 12;
+        stroke: root.ink;
+        stroke-width: 1.4px;
+        commands: root.kind == 0 ? "M 2 6 L 10 6"
+            : root.kind == 1 ? "M 2.5 2.5 L 9.5 2.5 L 9.5 9.5 L 2.5 9.5 Z"
+            : root.kind == 2 ? "M 2 4.5 L 7.5 4.5 L 7.5 10 L 2 10 Z M 4.5 4.5 L 4.5 2 L 10 2 L 10 7.5 L 7.5 7.5"
+            : "M 2.5 2.5 L 9.5 9.5 M 9.5 2.5 L 2.5 9.5";
+    }
+    ta := TouchArea {
+        clicked => { root.clicked(); }
+    }
+}
+
+// Empty title-bar space: dragging moves the window, a double click toggles maximise. The drag
+// starts on the first move after a press (not on the press) so double clicks still arrive.
+component DragArea inherits TouchArea {
+    callback drag();
+    callback toggle-maximize();
+    property <bool> armed;
+    pointer-event(e) => {
+        if e.button == PointerEventButton.left {
+            if e.kind == PointerEventKind.down {
+                self.armed = true;
+            } else if e.kind == PointerEventKind.up || e.kind == PointerEventKind.cancel {
+                self.armed = false;
+            }
+        }
+    }
+    moved => {
+        if self.armed && self.pressed {
+            self.armed = false;
+            root.drag();
+        }
+    }
+    double-clicked => { root.toggle-maximize(); }
+}
+
+// Invisible strip along a window edge or corner that starts an interactive resize.
+// dir: 0 N, 1 NE, 2 E, 3 SE, 4 S, 5 SW, 6 W, 7 NW.
+component ResizeEdge inherits TouchArea {
+    in property <int> dir;
+    callback resize(int);
+    mouse-cursor: dir == 0 || dir == 4 ? MouseCursor.ns-resize
+        : dir == 2 || dir == 6 ? MouseCursor.ew-resize
+        : dir == 1 || dir == 5 ? MouseCursor.nesw-resize
+        : MouseCursor.nwse-resize;
+    pointer-event(e) => {
+        if e.kind == PointerEventKind.down && e.button == PointerEventButton.left {
+            root.resize(root.dir);
+        }
     }
 }
 
@@ -212,6 +284,8 @@ component Loupe inherits Rectangle {
 
 export component MainWindow inherits Window {
     title: "Hyper Pixel";
+    // The app draws its own frame (title-bar buttons in the toolbar, drag areas, resize edges).
+    no-frame: true;
     icon: @image-url("../../../assets/hyper-pixel.png");
     preferred-width: 1400px;
     preferred-height: 900px;
@@ -268,6 +342,12 @@ export component MainWindow inherits Window {
     in property <[ResultItem]> results;
     in property <int> pending-pages;
 
+    callback window-drag();
+    callback window-minimize();
+    callback window-toggle-maximize();
+    callback window-close();
+    callback window-resize(int);
+
     callback refresh-devices();
     callback device-selected(int);
     callback settings-changed();
@@ -301,12 +381,19 @@ export component MainWindow inherits Window {
                 width: 1px;
                 background: Theme.line;
             }
+            // The logo header doubles as title-bar space.
+            DragArea {
+                height: header.y + header.height + 8px;
+                y: 0;
+                drag => { root.window-drag(); }
+                toggle-maximize => { root.window-toggle-maximize(); }
+            }
             VerticalLayout {
                 padding: 18px;
                 padding-bottom: 14px;
                 spacing: 14px;
 
-                HorizontalLayout {
+                header := HorizontalLayout {
                     spacing: 14px;
                     // The SVG is rasterised by Slint at the displayed size (and scale factor);
                     // shrinking the 512 px PNG this far aliased badly.
@@ -549,13 +636,17 @@ export component MainWindow inherits Window {
             Rectangle {
                 height: 46px;
                 background: Theme.bg;
+                // Empty toolbar space is the title bar.
+                DragArea {
+                    drag => { root.window-drag(); }
+                    toggle-maximize => { root.window-toggle-maximize(); }
+                }
                 HorizontalLayout {
                     padding-left: 14px;
-                    padding-right: 14px;
+                    padding-right: 6px;
                     padding-top: 8px;
                     padding-bottom: 8px;
                     spacing: 4px;
-                    alignment: start;
                     ToolButton {
                         text: "Detect photos";
                         enabled: !root.busy && root.preview-width > 0;
@@ -587,6 +678,26 @@ export component MainWindow inherits Window {
                         text: root.boxes.length == 0 ? "" : root.boxes.length + (root.boxes.length == 1 ? " area" : " areas");
                         color: Theme.muted;
                         vertical-alignment: center;
+                        horizontal-stretch: 0;
+                    }
+                    Rectangle { width: 10px; }
+                    HorizontalLayout {
+                        spacing: 2px;
+                        WindowButton {
+                            kind: 0;
+                            label: "Minimise";
+                            clicked => { root.window-minimize(); }
+                        }
+                        WindowButton {
+                            kind: root.maximized ? 2 : 1;
+                            label: root.maximized ? "Restore" : "Maximise";
+                            clicked => { root.window-toggle-maximize(); }
+                        }
+                        WindowButton {
+                            kind: 3;
+                            label: "Close";
+                            clicked => { root.window-close(); }
+                        }
                     }
                 }
             }
@@ -884,5 +995,23 @@ export component MainWindow inherits Window {
                 }
             }
         }
+    }
+
+    // Window frame: a hairline border and resize edges (not while maximised).
+    if !root.maximized : Rectangle {
+        border-width: 1px;
+        border-color: Theme.line;
+    }
+    if !root.maximized : Rectangle {
+        property <length> e: 5px;
+        property <length> c: 12px;
+        ResizeEdge { dir: 0; x: parent.c; y: 0; width: parent.width - 2 * parent.c; height: parent.e; resize(d) => { root.window-resize(d); } }
+        ResizeEdge { dir: 4; x: parent.c; y: parent.height - parent.e; width: parent.width - 2 * parent.c; height: parent.e; resize(d) => { root.window-resize(d); } }
+        ResizeEdge { dir: 6; x: 0; y: parent.c; width: parent.e; height: parent.height - 2 * parent.c; resize(d) => { root.window-resize(d); } }
+        ResizeEdge { dir: 2; x: parent.width - parent.e; y: parent.c; width: parent.e; height: parent.height - 2 * parent.c; resize(d) => { root.window-resize(d); } }
+        ResizeEdge { dir: 7; x: 0; y: 0; width: parent.c; height: parent.c; resize(d) => { root.window-resize(d); } }
+        ResizeEdge { dir: 1; x: parent.width - parent.c; y: 0; width: parent.c; height: parent.c; resize(d) => { root.window-resize(d); } }
+        ResizeEdge { dir: 5; x: 0; y: parent.height - parent.c; width: parent.c; height: parent.c; resize(d) => { root.window-resize(d); } }
+        ResizeEdge { dir: 3; x: parent.width - parent.c; y: parent.height - parent.c; width: parent.c; height: parent.c; resize(d) => { root.window-resize(d); } }
     }
 }

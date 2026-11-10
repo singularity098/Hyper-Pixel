@@ -38,6 +38,14 @@ up to 4800 dpi). Defaults are tuned for it.
 - Corner magnifier: the canvas shows a loupe (`Loupe` in `app.slint`) beside the pointer when it
   is on a box corner, while dragging a corner or drawing a box (`Editor::is_placing_point`), or
   while Shift is held. The mouse wheel sets its zoom (2–16×). Both settings are persisted.
+- Custom window frame: `MainWindow` has `no-frame: true`. The toolbar's empty space and the
+  sidebar logo header are `DragArea`s (drag moves via winit `drag_window`, double click maximises).
+  Minimise/maximise/close are `WindowButton`s at the right of the toolbar (close is red only on
+  hover). `ResizeEdge` strips call `drag_resize_window`. This needs slint's `unstable-winit-030`
+  feature. After a WM move or resize, `end_grab` sends Slint the release the WM swallowed;
+  without it, later clicks all go to the drag area.
+- The sidebar logo is the SVG (`assets/hyper-pixel.svg`), rasterised at its displayed size.
+  Shrinking the 512 px PNG aliases.
 - Preview default is 150 dpi (thin seams between touching prints vanish at 75 dpi). A saved
   75 from older versions is migrated on load.
 

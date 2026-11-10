@@ -885,7 +885,83 @@ impl App {
     }
 }
 
+/// Window-frame actions for the app's own title bar (the window has `no-frame`). These use the
+/// window directly, not `with_app`: moving or resizing can re-enter the UI synchronously.
+fn wire_window_frame(ui: &MainWindow) {
+    use slint::winit_030::WinitWindowAccessor;
+    use slint::winit_030::winit::window::ResizeDirection;
+
+    // The window manager consumes the button release that ends a move or resize, so Slint
+    // never sees it and would keep routing every later click to the title bar. Send it one.
+    fn end_grab(w: slint::Weak<MainWindow>) {
+        let _ = slint::invoke_from_event_loop(move || {
+            if let Some(ui) = w.upgrade() {
+                let outside = slint::LogicalPosition::new(-1.0, -1.0);
+                ui.window()
+                    .dispatch_event(slint::platform::WindowEvent::PointerReleased {
+                        position: outside,
+                        button: slint::platform::PointerEventButton::Left,
+                    });
+                ui.window()
+                    .dispatch_event(slint::platform::WindowEvent::PointerExited);
+            }
+        });
+    }
+
+    let w = ui.as_weak();
+    ui.on_window_drag(move || {
+        if let Some(ui) = w.upgrade() {
+            ui.window().with_winit_window(|win| {
+                if let Err(e) = win.drag_window() {
+                    log::debug!("drag_window: {e}");
+                }
+            });
+            end_grab(w.clone());
+        }
+    });
+    let w = ui.as_weak();
+    ui.on_window_resize(move |dir| {
+        let dir = match dir {
+            0 => ResizeDirection::North,
+            1 => ResizeDirection::NorthEast,
+            2 => ResizeDirection::East,
+            3 => ResizeDirection::SouthEast,
+            4 => ResizeDirection::South,
+            5 => ResizeDirection::SouthWest,
+            6 => ResizeDirection::West,
+            _ => ResizeDirection::NorthWest,
+        };
+        if let Some(ui) = w.upgrade() {
+            ui.window().with_winit_window(|win| {
+                if let Err(e) = win.drag_resize_window(dir) {
+                    log::debug!("drag_resize_window: {e}");
+                }
+            });
+            end_grab(w.clone());
+        }
+    });
+    let w = ui.as_weak();
+    ui.on_window_minimize(move || {
+        if let Some(ui) = w.upgrade() {
+            ui.window().set_minimized(true);
+        }
+    });
+    let w = ui.as_weak();
+    ui.on_window_toggle_maximize(move || {
+        if let Some(ui) = w.upgrade() {
+            ui.window().set_maximized(!ui.window().is_maximized());
+        }
+    });
+    let w = ui.as_weak();
+    ui.on_window_close(move || {
+        if let Some(ui) = w.upgrade() {
+            let _ = ui.hide();
+        }
+    });
+}
+
 fn wire(ui: &MainWindow) {
+    wire_window_frame(ui);
     ui.on_refresh_devices(|| {
         with_app(|a| {
             a.set_status("Looking for scanners…");
