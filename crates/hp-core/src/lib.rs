@@ -11,7 +11,9 @@ pub mod geom;
 pub mod pdf;
 pub mod pipeline;
 pub mod raster;
+pub mod restore;
 pub mod synth;
+pub mod synth_dust;
 
 pub use detect::{
     BackgroundHint, DetectParams, DetectReport, Detection, ScanGeometry, detect_photos,
