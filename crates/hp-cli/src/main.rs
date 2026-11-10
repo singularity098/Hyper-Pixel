@@ -5,7 +5,10 @@ use clap::{Parser, Subcommand, ValueEnum};
 use hp_core::color::ColorPreset;
 use hp_core::eval::Evaluator;
 use hp_core::export::{ExportOptions, ImageFormat};
-use hp_core::pipeline::{Naming, PhotoOutput, PhotoRegion, Stamp, extract_photos, save_all};
+use hp_core::pipeline::{
+    Naming, PhotoOutput, PhotoRegion, Stamp, enhance_photo, extract_photos_with, save_all,
+};
+use hp_core::restore::DustLevel;
 use hp_core::{BackgroundHint, DetectParams, RotatedRect, ScanGeometry, detect_photos};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -37,6 +40,70 @@ enum Color {
     Mono,
 }
 
+#[derive(Clone, Copy, ValueEnum)]
+enum Dust {
+    Off,
+    Light,
+    Normal,
+    Strong,
+}
+
+impl From<Dust> for DustLevel {
+    fn from(d: Dust) -> Self {
+        match d {
+            Dust::Off => DustLevel::Off,
+            Dust::Light => DustLevel::Light,
+            Dust::Normal => DustLevel::Normal,
+            Dust::Strong => DustLevel::Strong,
+        }
+    }
+}
+
+impl From<Color> for ColorPreset {
+    fn from(c: Color) -> Self {
+        match c {
+            Color::None => ColorPreset::None,
+            Color::Auto => ColorPreset::Auto,
+            Color::Restore => ColorPreset::RestoreFaded,
+            Color::Vivid => ColorPreset::Vivid,
+            Color::Mono => ColorPreset::Monochrome,
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, ValueEnum)]
+enum Models {
+    /// OCR models (~12 MB).
+    Ocr,
+    /// LaMa inpainting and DDColor colourisation (~410 MB).
+    Ai,
+    All,
+}
+
+/// Restoration options shared by `split` and `restore`.
+#[derive(clap::Args, Clone)]
+struct RestoreArgs {
+    /// Dust and scratch removal.
+    #[arg(long, value_enum, default_value_t = Dust::Off)]
+    dust: Dust,
+    /// Fill large defects with the LaMa model (needs `fetch-models ai`).
+    #[arg(long)]
+    ai_fill: bool,
+    /// Colourise black-and-white photos with DDColor (needs `fetch-models ai`).
+    #[arg(long)]
+    colorize: bool,
+}
+
+impl RestoreArgs {
+    fn enhancer(&self) -> Result<hp_ml::MlEnhancer> {
+        let e = hp_ml::MlEnhancer::load(self.ai_fill, self.colorize);
+        if (self.ai_fill && e.inpainter.is_none()) || (self.colorize && e.colorizer.is_none()) {
+            bail!("AI models missing — run `hyper-pixel-cli fetch-models ai`");
+        }
+        Ok(e)
+    }
+}
+
 #[derive(Subcommand)]
 enum Cmd {
     /// Split existing flatbed scans containing several photos into one file per photo.
@@ -51,6 +118,8 @@ enum Cmd {
         background: Bg,
         #[arg(long, value_enum, default_value_t = Color::None)]
         color: Color,
+        #[command(flatten)]
+        restore: RestoreArgs,
         /// Output extension: jpg, png, tif, jxl, webp, bmp.
         #[arg(long, default_value = "jpg")]
         format: String,
@@ -63,6 +132,28 @@ enum Cmd {
         /// file is left alone.
         #[arg(long)]
         write_truth: bool,
+    },
+    /// Restore single photos (already cropped scans or old files): dust and scratch
+    /// removal, colour correction, colourisation. Writes `<out>/<name>.<format>`.
+    Restore {
+        inputs: Vec<PathBuf>,
+        #[arg(short, long, default_value = "restored")]
+        out: PathBuf,
+        /// Resolution if the file does not record it (dust sizes are in millimetres).
+        #[arg(long, default_value_t = 600.0)]
+        dpi: f64,
+        #[arg(long, value_enum, default_value_t = Color::None)]
+        color: Color,
+        #[command(flatten)]
+        restore: RestoreArgs,
+        /// Output extension: jpg, png, tif, jxl, webp, bmp.
+        #[arg(long, default_value = "png")]
+        format: String,
+        #[arg(long, default_value_t = 95)]
+        quality: u8,
+        /// Also write `<name>.defects.png` with the detected defects in red.
+        #[arg(long)]
+        show_defects: bool,
     },
     /// Score the detector on synthetic scenes.
     EvalSynth {
@@ -89,8 +180,11 @@ enum Cmd {
         #[arg(long, default_value_t = 300.0)]
         dpi: f64,
     },
-    /// Download OCR models for offline use.
-    FetchModels,
+    /// Download models for offline use.
+    FetchModels {
+        #[arg(value_enum, default_value_t = Models::Ocr)]
+        which: Models,
+    },
     /// List scanners.
     Devices,
 }
@@ -142,11 +236,13 @@ fn main() -> Result<()> {
             dpi,
             background,
             color,
+            restore,
             format,
             quality,
             overlay,
             write_truth,
         } => {
+            let enhancer = restore.enhancer()?;
             let fmt = ImageFormat::from_extension(&format).context("unknown format")?;
             let params = DetectParams {
                 background: match background {
@@ -156,12 +252,11 @@ fn main() -> Result<()> {
                 },
                 ..Default::default()
             };
-            let color = match color {
-                Color::None => ColorPreset::None,
-                Color::Auto => ColorPreset::Auto,
-                Color::Restore => ColorPreset::RestoreFaded,
-                Color::Vivid => ColorPreset::Vivid,
-                Color::Mono => ColorPreset::Monochrome,
+            let output = PhotoOutput {
+                color: color.into(),
+                dust: restore.dust.into(),
+                colorize: restore.colorize,
+                ..Default::default()
             };
             for input in inputs {
                 let img =
@@ -208,15 +303,7 @@ fn main() -> Result<()> {
                         quarter_turns: 0,
                     })
                     .collect();
-                let photos = extract_photos(
-                    &img,
-                    geo,
-                    &regions,
-                    &PhotoOutput {
-                        color,
-                        ..Default::default()
-                    },
-                );
+                let photos = extract_photos_with(&img, geo, &regions, &output, Some(&enhancer));
                 let stem = input
                     .file_stem()
                     .and_then(|s| s.to_str())
@@ -240,6 +327,60 @@ fn main() -> Result<()> {
                 for p in saved {
                     println!("{}", p.display());
                 }
+            }
+        }
+        Cmd::Restore {
+            inputs,
+            out,
+            dpi,
+            color,
+            restore,
+            format,
+            quality,
+            show_defects,
+        } => {
+            let fmt = ImageFormat::from_extension(&format).context("unknown format")?;
+            let enhancer = restore.enhancer()?;
+            let output = PhotoOutput {
+                color: color.into(),
+                dust: restore.dust.into(),
+                colorize: restore.colorize,
+                ..Default::default()
+            };
+            std::fs::create_dir_all(&out)?;
+            for input in inputs {
+                let img =
+                    image::open(&input).with_context(|| format!("reading {}", input.display()))?;
+                let dpi = file_dpi(&input).unwrap_or(dpi);
+                let stem = input
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("photo");
+                let t = std::time::Instant::now();
+                if show_defects && let Some(p) = output.dust.params() {
+                    let d = hp_core::restore::find_defects(&img, dpi, &p);
+                    log::info!("{}: {} defect(s)", input.display(), d.items.len());
+                    hp_core::restore::overlay(&img, &d.mask)
+                        .save(out.join(format!("{stem}.defects.png")))?;
+                }
+                let res = enhance_photo(img, dpi, &output, Some(&enhancer));
+                let dest = out.join(format!("{stem}.{}", fmt.extension()));
+                hp_core::export::save(
+                    &res,
+                    &dest,
+                    &ExportOptions {
+                        format: fmt,
+                        jpeg_quality: quality,
+                        dpi,
+                    },
+                )?;
+                log::info!(
+                    "{} -> {} in {:.1} s",
+                    input.display(),
+                    dest.display(),
+                    t.elapsed().as_secs_f64()
+                );
+                println!("{}", dest.display());
             }
         }
         Cmd::EvalSynth { n, dpi, gap } => {
@@ -355,11 +496,20 @@ fn main() -> Result<()> {
                 log::info!("wrote {}", pdf.display());
             }
         }
-        Cmd::FetchModels => {
-            let dir = hp_ocr::download_models(&mut |d, t| {
-                eprint!("\r{:.1}/{:.1} MB", d as f64 / 1e6, t as f64 / 1e6)
-            })?;
-            eprintln!("\nmodels in {}", dir.display());
+        Cmd::FetchModels { which } => {
+            let progress =
+                &mut |d: u64, t: u64| eprint!("\r{:.1}/{:.1} MB", d as f64 / 1e6, t as f64 / 1e6);
+            if which != Models::Ai {
+                let dir = hp_ocr::download_models(progress)?;
+                eprintln!("\nOCR models in {}", dir.display());
+            }
+            if which != Models::Ocr {
+                for spec in [hp_ml::LAMA, hp_ml::DDCOLOR] {
+                    eprintln!("{} ({})", spec.label, spec.licence);
+                    let dir = hp_ml::models::download(&spec, progress)?;
+                    eprintln!("\n{} in {}", spec.label, dir.display());
+                }
+            }
         }
         Cmd::Devices => {
             let (mut b, err) = hp_scan::default_backend();

@@ -9,7 +9,10 @@ use hp_core::color::ColorPreset;
 use hp_core::document::{DocColorMode, DocParams};
 use hp_core::export::{ExportOptions, ImageFormat};
 use hp_core::pdf::TextWord;
-use hp_core::pipeline::{Naming, PhotoOutput, PhotoRegion, Stamp, extract_photos, save_all};
+use hp_core::pipeline::{
+    Enhancer, Naming, PhotoOutput, PhotoRegion, Stamp, extract_photos_with, save_all,
+};
+use hp_core::restore::DustLevel;
 use hp_core::{BackgroundHint, DetectParams, Point, RotatedRect, ScanGeometry, detect_photos};
 use hp_scan::{Capabilities, ColorMode, DeviceInfo, ScanResult, ScanSettings, is_feeder_source};
 use image::DynamicImage;
@@ -60,6 +63,7 @@ struct App {
     results: Vec<ResultEntry>,
     pages: Vec<(DynamicImage, Vec<TextWord>, f64)>,
     ocr: Option<Arc<hp_ocr::Ocr>>,
+    ml: Option<Arc<hp_ml::MlEnhancer>>,
     busy: bool,
     /// Boxes captured when a final photo scan was started.
     scan_boxes: Vec<CropBox>,
@@ -183,6 +187,17 @@ impl App {
                 .position(|p| *p == s.color_preset)
                 .unwrap_or(0) as i32,
         );
+        ui.set_dust_levels(strings(
+            DustLevel::ALL.iter().map(|l| l.label().to_string()),
+        ));
+        ui.set_dust_index(
+            DustLevel::ALL
+                .iter()
+                .position(|l| *l == s.dust)
+                .unwrap_or(0) as i32,
+        );
+        ui.set_ai_fill(s.ai_fill);
+        ui.set_colorize(s.colorize);
         ui.set_deskew(s.deskew);
         ui.set_whiten(s.whiten);
         ui.set_doc_modes(strings(
@@ -264,6 +279,12 @@ impl App {
             .get(ui.get_color_preset_index() as usize)
             .copied()
             .unwrap_or_default();
+        s.dust = DustLevel::ALL
+            .get(ui.get_dust_index() as usize)
+            .copied()
+            .unwrap_or_default();
+        s.ai_fill = ui.get_ai_fill();
+        s.colorize = ui.get_colorize();
         s.deskew = ui.get_deskew();
         s.whiten = ui.get_whiten();
         s.doc_mode = DocColorMode::ALL
@@ -615,7 +636,10 @@ impl App {
         let out = PhotoOutput {
             color: self.settings.color_preset,
             inset_mm: self.settings.inset_mm,
+            dust: self.settings.dust,
+            colorize: self.settings.colorize,
         };
+        let ml = self.ensure_ml();
         let dir = self.settings.output_dir.clone();
         let naming = Naming {
             pattern: self.settings.name_pattern.clone(),
@@ -655,7 +679,8 @@ impl App {
             let photos = if regions.is_empty() {
                 vec![r.image.clone()]
             } else {
-                extract_photos(&r.image, geo, &regions, &out)
+                let enh = ml.as_deref().map(|m| m as &dyn Enhancer);
+                extract_photos_with(&r.image, geo, &regions, &out, enh)
             };
             let saved = save_all(&photos, &dir, &naming, &stamp(), &opts);
             let thumbs: Vec<_> = photos.iter().map(thumb).collect();
@@ -681,6 +706,23 @@ impl App {
                 }
             });
         });
+    }
+
+    /// The AI models the current settings ask for, loaded once and kept.
+    fn ensure_ml(&mut self) -> Option<Arc<hp_ml::MlEnhancer>> {
+        let fill = self.settings.ai_fill && self.settings.dust != DustLevel::Off;
+        let col = self.settings.colorize;
+        if !fill && !col {
+            return None;
+        }
+        let have = self
+            .ml
+            .as_ref()
+            .map(|m| (m.inpainter.is_some(), m.colorizer.is_some()));
+        if have.is_none_or(|(f, c)| (fill && !f) || (col && !c)) {
+            self.ml = Some(Arc::new(hp_ml::MlEnhancer::load(fill, col)));
+        }
+        self.ml.clone()
     }
 
     fn ensure_ocr(&mut self) -> Option<Arc<hp_ocr::Ocr>> {
@@ -1103,6 +1145,44 @@ fn wire(ui: &MainWindow) {
     ui.on_result_delete(|i| {
         with_app(|a| a.delete_result(i as usize));
     });
+    ui.on_download_ai_models(|| {
+        with_app(|a| a.set_status("Downloading AI models…"));
+        std::thread::spawn(|| {
+            let specs = [hp_ml::LAMA, hp_ml::DDCOLOR];
+            let total: u64 = specs.iter().map(|s| s.download_size()).sum();
+            let mut base = 0u64;
+            let mut res = Ok(());
+            for spec in specs {
+                let mut last = 0u64;
+                let r = hp_ml::models::download(&spec, &mut |d, _| {
+                    if d.saturating_sub(last) > 2_000_000 {
+                        last = d;
+                        let done = base + d;
+                        post(move |a| {
+                            a.set_status(format!(
+                                "Downloading AI models… {:.0} / {:.0} MB",
+                                done as f64 / 1e6,
+                                total as f64 / 1e6
+                            ))
+                        });
+                    }
+                });
+                base += spec.download_size();
+                if let Err(e) = r {
+                    res = Err(e);
+                    break;
+                }
+            }
+            post(move |a| match res {
+                Ok(()) => {
+                    a.ml = None;
+                    a.ui().set_ai_ready(ai_models_ready());
+                    a.set_status("AI models installed");
+                }
+                Err(e) => a.set_status(format!("Download failed: {e}")),
+            });
+        });
+    });
     ui.on_download_models(|| {
         with_app(|a| a.set_status("Downloading OCR models…"));
         std::thread::spawn(|| {
@@ -1128,6 +1208,10 @@ fn wire(ui: &MainWindow) {
             });
         });
     });
+}
+
+fn ai_models_ready() -> bool {
+    hp_ml::LAMA.find().is_some() && hp_ml::DDCOLOR.find().is_some()
 }
 
 fn main() -> Result<(), slint::PlatformError> {
@@ -1169,6 +1253,7 @@ fn main() -> Result<(), slint::PlatformError> {
         results: Vec::new(),
         pages: Vec::new(),
         ocr: None,
+        ml: None,
         busy: false,
         scan_boxes: Vec::new(),
     };
@@ -1176,6 +1261,7 @@ fn main() -> Result<(), slint::PlatformError> {
     with_app(|a| {
         a.push_settings();
         a.ui().set_ocr_ready(hp_ocr::find_models().is_some());
+        a.ui().set_ai_ready(ai_models_ready());
         a.set_status("Looking for scanners…");
         a.worker.send(Command::ListDevices);
     });

@@ -309,6 +309,47 @@ pub fn apply(img: &DynamicImage, p: &ColorParams) -> DynamicImage {
     }
 }
 
+/// True for black-and-white photos, including toned ones (sepia, selenium, cyanotype):
+/// their chroma is a single tint, so it barely varies across the picture.
+pub fn is_monochrome(img: &DynamicImage) -> bool {
+    if matches!(
+        img,
+        DynamicImage::ImageLuma8(_)
+            | DynamicImage::ImageLuma16(_)
+            | DynamicImage::ImageLumaA8(_)
+            | DynamicImage::ImageLumaA16(_)
+    ) {
+        return true;
+    }
+    let small = img.thumbnail(256, 256).to_rgb32f();
+    let lab: Vec<[f32; 2]> = small
+        .pixels()
+        .map(|p| {
+            let c = to_oklab(p[0], p[1], p[2]);
+            [c[1], c[2]]
+        })
+        .collect();
+    if lab.is_empty() {
+        return true;
+    }
+    let n = lab.len() as f32;
+    let ma = lab.iter().map(|c| c[0]).sum::<f32>() / n;
+    let mb = lab.iter().map(|c| c[1]).sum::<f32>() / n;
+    // A toned print's chroma grows with brightness but keeps its hue, so measure only the
+    // spread across the mean tint direction (or plain chroma for an untinted print).
+    // 98th percentile, so a few coloured specks don't count.
+    let m = (ma * ma + mb * mb).sqrt();
+    let dev: Vec<f32> = if m > 0.01 {
+        let (ux, uy) = (ma / m, mb / m);
+        lab.iter().map(|c| (c[0] * uy - c[1] * ux).abs()).collect()
+    } else {
+        lab.iter()
+            .map(|c| (c[0] * c[0] + c[1] * c[1]).sqrt())
+            .collect()
+    };
+    percentile(&dev, 0.98) < 0.03
+}
+
 /// Simulate fading for tests/demos: lifts blacks, crushes contrast and adds a warm cast.
 pub fn simulate_fade(img: &DynamicImage) -> DynamicImage {
     let mut b = img.to_rgb8();
@@ -361,6 +402,28 @@ mod tests {
         let before = mean_abs_diff(&photo, &faded);
         let after = mean_abs_diff(&photo, &restored);
         assert!(after < before * 0.6, "before {before} after {after}");
+    }
+
+    #[test]
+    fn detects_monochrome() {
+        let photo = crate::synth_dust::render(1, 100.0, 60.0, 40.0, 0).clean;
+        assert!(!is_monochrome(&photo));
+        let grey = DynamicImage::ImageRgb8(photo.grayscale().to_rgb8());
+        assert!(is_monochrome(&grey));
+        assert!(is_monochrome(&photo.grayscale()));
+        // Sepia toning is still black and white.
+        let mut sepia = grey.to_rgb8();
+        for p in sepia.pixels_mut() {
+            let v = p[0] as f32;
+            *p = Rgb([
+                (v * 1.0).min(255.0) as u8,
+                (v * 0.85) as u8,
+                (v * 0.65) as u8,
+            ]);
+        }
+        assert!(is_monochrome(&DynamicImage::ImageRgb8(sepia)));
+        // A faded colour print is not.
+        assert!(!is_monochrome(&simulate_fade(&photo)));
     }
 
     #[test]

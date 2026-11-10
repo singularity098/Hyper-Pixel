@@ -311,6 +311,11 @@ export component MainWindow inherits Window {
     in-out property <bool> auto-detect: true;
     in property <[string]> color-presets;
     in-out property <int> color-preset-index;
+    in property <[string]> dust-levels;
+    in-out property <int> dust-index;
+    in-out property <bool> ai-fill;
+    in-out property <bool> colorize;
+    in property <bool> ai-ready;
     in-out property <bool> deskew: true;
     in-out property <bool> whiten: true;
     in property <[string]> doc-modes;
@@ -370,6 +375,7 @@ export component MainWindow inherits Window {
     callback result-rotate(int);
     callback result-delete(int);
     callback download-models();
+    callback download-ai-models();
 
     HorizontalLayout {
         // =================================== Sidebar ======================================
@@ -516,6 +522,39 @@ export component MainWindow inherits Window {
                                     model: root.color-presets;
                                     current-index <=> root.color-preset-index;
                                     selected => { root.settings-changed(); }
+                                }
+                            }
+                            SectionTitle { text: "RESTORATION"; }
+                            Field {
+                                label: "Dust & scratch removal";
+                                ComboBox {
+                                    model: root.dust-levels;
+                                    current-index <=> root.dust-index;
+                                    selected => { root.settings-changed(); }
+                                }
+                            }
+                            if root.dust-index > 0 : Switch {
+                                text: "AI fill for large damage (slower)";
+                                checked <=> root.ai-fill;
+                                toggled => { root.settings-changed(); }
+                            }
+                            Switch {
+                                text: "Colourise black & white photos (AI)";
+                                checked <=> root.colorize;
+                                toggled => { root.settings-changed(); }
+                            }
+                            if ((root.ai-fill && root.dust-index > 0) || root.colorize) && !root.ai-ready : HorizontalLayout {
+                                spacing: 8px;
+                                Text {
+                                    text: "AI models (410 MB) not installed.";
+                                    color: Theme.warn;
+                                    wrap: word-wrap;
+                                    horizontal-stretch: 1;
+                                    vertical-alignment: center;
+                                }
+                                Button {
+                                    text: "Download";
+                                    clicked => { root.download-ai-models(); }
                                 }
                             }
                         }
