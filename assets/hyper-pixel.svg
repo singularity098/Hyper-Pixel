@@ -1,7 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="24 21 200 200">
   <title>Hyper Pixel</title>
-  <!-- Tile -->
-  <rect width="256" height="256" rx="56" fill="#121419"/>
+  <!-- No tile: the prints fill the canvas (viewBox fitted to their bounds). -->
   <!-- Back print: the rest of the stack -->
   <g transform="rotate(9 128 128)">
     <rect x="50" y="50" width="128" height="116" rx="6" fill="#3a4357"/>

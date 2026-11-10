@@ -388,12 +388,17 @@ export component MainWindow inherits Window {
                 drag => { root.window-drag(); }
                 toggle-maximize => { root.window-toggle-maximize(); }
             }
+            // Side padding lives on each row, not here, so the ScrollView reaches the panel
+            // edge and its scrollbar sits in the right gutter instead of over the controls.
             VerticalLayout {
-                padding: 18px;
+                padding-top: 18px;
                 padding-bottom: 14px;
+                padding-right: 1px; // keep clear of the divider line
                 spacing: 14px;
 
                 header := HorizontalLayout {
+                    padding-left: 18px;
+                    padding-right: 18px;
                     spacing: 14px;
                     // The SVG is rasterised by Slint at the displayed size (and scale factor);
                     // shrinking the 512 px PNG this far aliased badly.
@@ -414,7 +419,8 @@ export component MainWindow inherits Window {
                     vertical-stretch: 1;
                     VerticalLayout {
                         spacing: 14px;
-                        padding-right: 6px;
+                        padding-left: 18px;
+                        padding-right: 18px;
 
                         SectionTitle { text: "SCANNER"; }
                         HorizontalLayout {
@@ -607,11 +613,18 @@ export component MainWindow inherits Window {
                     }
                 }
 
-                if root.busy : BigButton {
-                    text: "Cancel";
-                    clicked => { root.cancel(); }
+                if root.busy : HorizontalLayout {
+                    padding-left: 18px;
+                    padding-right: 18px;
+                    BigButton {
+                        horizontal-stretch: 1;
+                        text: "Cancel";
+                        clicked => { root.cancel(); }
+                    }
                 }
                 if !root.busy : HorizontalLayout {
+                    padding-left: 18px;
+                    padding-right: 18px;
                     spacing: 10px;
                     BigButton {
                         horizontal-stretch: 1;

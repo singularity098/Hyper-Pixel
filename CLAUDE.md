@@ -44,6 +44,8 @@ up to 4800 dpi). Defaults are tuned for it.
   hover). `ResizeEdge` strips call `drag_resize_window`. This needs slint's `unstable-winit-030`
   feature. After a WM move or resize, `end_grab` sends Slint the release the WM swallowed;
   without it, later clicks all go to the drag area.
+- Sidebar padding (18 px) is set per row, not on the outer layout, so the `ScrollView` spans the
+  panel and its scrollbar sits in the right gutter instead of over the controls.
 - The sidebar logo is the SVG (`assets/hyper-pixel.svg`), rasterised at its displayed size.
   Shrinking the 512 px PNG aliases.
 - Preview default is 150 dpi (thin seams between touching prints vanish at 75 dpi). A saved
@@ -103,7 +105,7 @@ AppImage, and publishes a `continuous` prerelease on every push to main. Tags `v
 create releases.
 
 Icon: `assets/hyper-pixel.svg` is the source (a stack of prints, the front one dissolving into
-pixels, on a #121419 tile). `assets/hyper-pixel.png` (512) and `hyper-pixel-128.png` are
+pixels; no background tile, the viewBox is fitted to the artwork so it fills the icon). `assets/hyper-pixel.png` (512) and `hyper-pixel-128.png` are
 rendered from it with headless Chromium, not drawn by hand; re-render them after editing the SVG.
 Wordmark: "Hyper Pixel" semibold with the tagline "SCAN · SPLIT · RESTORE" letter-spaced below.
 
