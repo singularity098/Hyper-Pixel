@@ -4,6 +4,7 @@ use hp_core::BackgroundHint;
 use hp_core::color::ColorPreset;
 use hp_core::document::DocColorMode;
 use hp_core::export::ImageFormat;
+use hp_core::restore::DustLevel;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -34,6 +35,12 @@ pub struct Settings {
     pub background: BackgroundHint,
     pub auto_detect: bool,
     pub color_preset: ColorPreset,
+    /// Dust and scratch removal on saved photos.
+    pub dust: DustLevel,
+    /// LaMa for large defects (needs the AI models).
+    pub ai_fill: bool,
+    /// Colourise black-and-white photos (needs the AI models).
+    pub colorize: bool,
     pub deskew: bool,
     pub whiten: bool,
     pub doc_mode: DocColorMode,
@@ -70,6 +77,9 @@ impl Default for Settings {
             background: BackgroundHint::Auto,
             auto_detect: true,
             color_preset: ColorPreset::None,
+            dust: DustLevel::Off,
+            ai_fill: false,
+            colorize: false,
             deskew: true,
             whiten: true,
             doc_mode: DocColorMode::Color,

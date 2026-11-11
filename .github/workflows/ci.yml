@@ -29,6 +29,8 @@ jobs:
       - run: cargo test --workspace --release --locked
       - name: Detector benchmark (synthetic)
         run: cargo run --release --locked -p hp-cli -- eval-synth --n 100 --dpi 75
+      - name: Dust benchmark (synthetic)
+        run: cargo run --release --locked -p hp-core --example eval_dust -- 20 600
 
   appimage:
     needs: check

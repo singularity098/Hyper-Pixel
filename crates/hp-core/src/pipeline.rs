@@ -5,6 +5,7 @@ use crate::crop;
 use crate::detect::ScanGeometry;
 use crate::export::{self, ExportError, ExportOptions, ImageFormat};
 use crate::geom::RotatedRect;
+use crate::restore::{Defects, DustLevel, Planes};
 use image::DynamicImage;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -20,10 +21,15 @@ pub struct PhotoRegion {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct PhotoOutput {
     pub color: ColorPreset,
     /// Trim this much from each edge (mm) so no background shows.
     pub inset_mm: f64,
+    /// Dust and scratch removal.
+    pub dust: DustLevel,
+    /// Colourise black-and-white photos (needs an [`Enhancer`] that can).
+    pub colorize: bool,
 }
 
 impl Default for PhotoOutput {
@@ -31,8 +37,53 @@ impl Default for PhotoOutput {
         Self {
             color: ColorPreset::None,
             inset_mm: 0.4,
+            dust: DustLevel::Off,
+            colorize: false,
         }
     }
+}
+
+/// Optional neural steps, implemented outside hp-core (see the `hp-ml` crate).
+pub trait Enhancer: Sync {
+    /// Improve the fill of large defects in `planes`, which the healing brush has already
+    /// filled. Only pixels under `defects.mask` may change.
+    fn refill(&self, _planes: &mut Planes, _defects: &Defects, _dpi: f64) {}
+    /// Colourise a black-and-white photo. `None` if not available.
+    fn colorize(&self, _img: &DynamicImage) -> Option<DynamicImage> {
+        None
+    }
+}
+
+/// Clean up one extracted photo: dust removal, colour preset, colourisation.
+pub fn enhance_photo(
+    p: DynamicImage,
+    dpi: f64,
+    out: &PhotoOutput,
+    enhancer: Option<&dyn Enhancer>,
+) -> DynamicImage {
+    let mut p = p;
+    if let Some(dp) = out.dust.params() {
+        let mut pl = Planes::from_image(&p);
+        let defects = crate::restore::find_defects_planes(&pl, dpi, &dp);
+        if !defects.is_empty() {
+            crate::restore::heal_planes(&mut pl, &defects.mask);
+            if let Some(e) = enhancer {
+                e.refill(&mut pl, &defects, dpi);
+            }
+            p = pl.write_masked(&p, &defects.mask);
+        }
+    }
+    if let Some(cp) = out.color.params() {
+        p = crate::color::apply(&p, &cp);
+    }
+    if out.colorize
+        && out.color != ColorPreset::Monochrome
+        && crate::color::is_monochrome(&p)
+        && let Some(c) = enhancer.and_then(|e| e.colorize(&p))
+    {
+        p = c;
+    }
+    p
 }
 
 /// Extract, straighten and colour-correct each region (in parallel).
@@ -42,13 +93,22 @@ pub fn extract_photos(
     regions: &[PhotoRegion],
     out: &PhotoOutput,
 ) -> Vec<DynamicImage> {
+    extract_photos_with(img, geo, regions, out, None)
+}
+
+/// [`extract_photos`] with optional neural steps.
+pub fn extract_photos_with(
+    img: &DynamicImage,
+    geo: ScanGeometry,
+    regions: &[PhotoRegion],
+    out: &PhotoOutput,
+    enhancer: Option<&dyn Enhancer>,
+) -> Vec<DynamicImage> {
     regions
         .par_iter()
         .map(|r| {
-            let mut p = crop::extract(img, geo, &r.rect, out.inset_mm);
-            if let Some(cp) = out.color.params() {
-                p = crate::color::apply(&p, &cp);
-            }
+            let p = crop::extract(img, geo, &r.rect, out.inset_mm);
+            let p = enhance_photo(p, geo.dpi, out, enhancer);
             crop::rotate_quarter(&p, r.quarter_turns)
         })
         .collect()

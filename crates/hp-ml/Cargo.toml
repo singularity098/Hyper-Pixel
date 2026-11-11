@@ -1,0 +1,20 @@
+[package]
+name = "hp-ml"
+description = "Hyper Pixel neural models (pure-Rust rten): inpainting, colourisation, model management"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+hp-core.workspace = true
+image.workspace = true
+thiserror.workspace = true
+log.workspace = true
+rten = "0.26"
+rten-tensor = "0.26"
+ureq = { version = "3", default-features = false, features = ["rustls"] }
+dirs = "6"
+sha2 = "0.10"
+miniz_oxide = "0.8"
+rayon.workspace = true

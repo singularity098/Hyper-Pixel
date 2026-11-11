@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/hp-core", "crates/hp-scan", "crates/hp-ocr", "crates/hp-cli", "crates/hp-app"]
+members = ["crates/hp-core", "crates/hp-scan", "crates/hp-ocr", "crates/hp-ml", "crates/hp-cli", "crates/hp-app"]
 
 
 [workspace.package]
@@ -14,6 +14,7 @@ rust-version = "1.94"
 hp-core = { path = "crates/hp-core" }
 hp-scan = { path = "crates/hp-scan" }
 hp-ocr = { path = "crates/hp-ocr" }
+hp-ml = { path = "crates/hp-ml" }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "tiff", "webp", "bmp", "rayon"] }
 rayon = "1.10"
 anyhow = "1"

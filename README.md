@@ -14,6 +14,12 @@ and saved as its own file.
 - **Only the needed area is scanned** at high resolution, which saves time.
 - **Colour correction and restoration:** Auto, Restore faded (per-channel recovery of
   colour-shifted prints), Vivid and Monochrome.
+- **Dust and scratch removal** (Light / Normal / Strong). Specks, hairs and scratches are
+  found by their size, shape, colourlessness and crisp edges, then filled from the
+  surrounding texture. Only defect pixels change.
+- **AI restoration on the CPU** (optional, ~410 MB download): colourise black-and-white
+  photos with DDColor, and fill large damage with LaMa. Both run in pure Rust (`rten`), so
+  no GPU is needed.
 - **Documents:** deskew, paper whitening, black & white, multi-page scanning through the
   document feeder, and **OCR** into searchable PDFs (pure-Rust `ocrs` engine, models
   bundled).
@@ -51,6 +57,8 @@ The AppImage also contains `hyper-pixel-cli`:
 
 ```bash
 ./Hyper_Pixel.AppImage cli split scans/*.png -o photos --color restore   # split existing scans
+./Hyper_Pixel.AppImage cli restore old/*.jpg -o clean --dust normal --colorize  # restore photos
+./Hyper_Pixel.AppImage cli fetch-models ai                                # AI models (~410 MB)
 ./Hyper_Pixel.AppImage cli ocr page1.png page2.png --pdf doc.pdf          # OCR to searchable PDF
 ./Hyper_Pixel.AppImage cli devices                                        # list scanners
 ```
@@ -65,4 +73,8 @@ HYPER_PIXEL_MOCK=1 cargo run --release -p hp-app   # run with demo scanners, no 
 
 ## License
 
-GPL-3.0-or-later.
+GPL-3.0-or-later. The optional AI models are downloaded separately and are Apache-2.0:
+[LaMa](https://github.com/advimman/lama) (ONNX export by
+[Carve](https://huggingface.co/Carve/LaMa-ONNX)) and
+[DDColor](https://github.com/piddnad/DDColor) (ONNX export by
+[Qualcomm AI Hub](https://huggingface.co/qualcomm/DDColor)).
