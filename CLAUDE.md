@@ -160,9 +160,13 @@ ubuntu-24.04, glibc 2.39). `hyper-pixel install-desktop` writes a `.desktop` ent
 benchmarks, builds the binary, and publishes a `continuous` prerelease on every push to
 main. Tags `v*` create releases.
 
-Icon: `assets/hyper-pixel.svg` is the source (a stack of prints, the front one dissolving into
-pixels; no background tile, the viewBox is fitted to the artwork so it fills the icon). `assets/hyper-pixel.png` (512) and `hyper-pixel-128.png` are
-rendered from it with headless Chromium, not drawn by hand; re-render them after editing the SVG.
+Icon: `assets/hyper-pixel.svg` is the source ("Midnight Flatbed": a dark flatbed on a dark
+rounded tile, lid raised, two prints on the glass, a red laser line near the front edge). It is
+deliberately static: KDE and most launchers cannot animate icons, so it is one chosen frame of an
+animated concept, with the laser at 80% of the way from hinge to front (the lid then barely shows
+the red cast, which keeps the outline clean at 16–22 px). It uses gradients and a Gaussian-blur
+glow, both of which Slint's renderer handles. `assets/hyper-pixel.png` (512) and `hyper-pixel-128.png`
+are rendered from it with headless Chromium, not drawn by hand; re-render them after editing the SVG.
 Wordmark: "Hyper Pixel" semibold with the tagline "SCAN · SPLIT · RESTORE" letter-spaced below.
 
 ## Roadmap / ideas
