@@ -15,6 +15,7 @@ hp-core.workspace = true
 hp-scan.workspace = true
 hp-ocr.workspace = true
 hp-ml.workspace = true
+hp-cli.workspace = true
 image.workspace = true
 serde.workspace = true
 serde_json.workspace = true

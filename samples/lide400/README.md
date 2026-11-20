@@ -5,8 +5,8 @@ private family photos and are not in the repository; ask the owner for them and 
 here as `<name>.png` next to the JSON files, then run:
 
 ```bash
-cargo run --release -p hp-cli -- eval samples/lide400
-cargo run --release -p hp-cli -- eval --at-dpi 150 samples/lide400   # as a preview would see it
+cargo run --release -p hp-app -- eval samples/lide400
+cargo run --release -p hp-app -- eval --at-dpi 150 samples/lide400   # as a preview would see it
 ```
 
 | File | Background | What makes it hard |

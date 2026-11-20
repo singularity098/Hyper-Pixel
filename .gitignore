@@ -1,6 +1,5 @@
 /target
 /dist
-*.AppImage
 /samples/private
 # The owner's real scans are private; only their ground truth is committed.
 /samples/lide400/*.png

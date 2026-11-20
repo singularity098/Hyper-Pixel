@@ -1216,6 +1216,14 @@ fn ai_models_ready() -> bool {
 
 fn main() -> Result<(), slint::PlatformError> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    // One binary: with arguments it is the command line, without them the app.
+    if std::env::args_os().len() > 1 {
+        if let Err(e) = hp_cli::run(std::env::args_os()) {
+            eprintln!("Error: {e:?}");
+            std::process::exit(1);
+        }
+        return Ok(());
+    }
     let ui = MainWindow::new()?;
     let weak = ui.as_weak();
     let worker = Worker::spawn(move |ev| {
@@ -1260,7 +1268,7 @@ fn main() -> Result<(), slint::PlatformError> {
     APP.with(|a| *a.borrow_mut() = Some(app));
     with_app(|a| {
         a.push_settings();
-        a.ui().set_ocr_ready(hp_ocr::find_models().is_some());
+        a.ui().set_ocr_ready(hp_ocr::models_available());
         a.ui().set_ai_ready(ai_models_ready());
         a.set_status("Looking for scanners…");
         a.worker.send(Command::ListDevices);

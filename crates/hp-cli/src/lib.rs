@@ -1,4 +1,6 @@
-//! `hyper-pixel-cli` — headless tools around the Hyper Pixel engine.
+//! Hyper Pixel's command line: headless tools around the engine. It is linked into the
+//! `hyper-pixel` binary, which runs these commands when given arguments and opens the app
+//! when started without any.
 
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand, ValueEnum};
@@ -11,13 +13,15 @@ use hp_core::pipeline::{
 use hp_core::restore::DustLevel;
 use hp_core::{BackgroundHint, DetectParams, RotatedRect, ScanGeometry, detect_photos};
 use serde::{Deserialize, Serialize};
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 #[derive(Parser)]
 #[command(
-    name = "hyper-pixel-cli",
+    name = "hyper-pixel",
     version,
-    about = "Hyper Pixel command-line tools"
+    about = "Hyper Pixel: scan, split and restore photos",
+    after_help = "Run without arguments to open the scanner app."
 )]
 struct Cli {
     #[command(subcommand)]
@@ -98,7 +102,7 @@ impl RestoreArgs {
     fn enhancer(&self) -> Result<hp_ml::MlEnhancer> {
         let e = hp_ml::MlEnhancer::load(self.ai_fill, self.colorize);
         if (self.ai_fill && e.inpainter.is_none()) || (self.colorize && e.colorizer.is_none()) {
-            bail!("AI models missing — run `hyper-pixel-cli fetch-models ai`");
+            bail!("AI models missing — run `hyper-pixel fetch-models ai`");
         }
         Ok(e)
     }
@@ -187,6 +191,13 @@ enum Cmd {
     },
     /// List scanners.
     Devices,
+    /// Add Hyper Pixel to the application menu (a `.desktop` entry and icon in
+    /// ~/.local/share that start this binary).
+    InstallDesktop {
+        /// Remove the entry and icon instead.
+        #[arg(long)]
+        remove: bool,
+    },
 }
 
 /// Ground truth / detection record stored next to corpus images.
@@ -227,9 +238,79 @@ fn file_dpi(path: &Path) -> Option<f64> {
     None
 }
 
-fn main() -> Result<()> {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
-    match Cli::parse().cmd {
+/// Quote a path for a desktop entry's `Exec` key.
+fn desktop_exec_arg(path: &Path) -> String {
+    let s = path.to_string_lossy();
+    let quoted = if s.contains(|c: char| c.is_whitespace() || "\"'`$\\<>~|&;*?#()".contains(c)) {
+        let mut q = String::from('"');
+        for c in s.chars() {
+            if matches!(c, '"' | '`' | '$' | '\\') {
+                q.push('\\');
+            }
+            q.push(c);
+        }
+        q.push('"');
+        // String values unescape `\\` once before the Exec quoting rules apply.
+        q.replace('\\', "\\\\")
+    } else {
+        s.into_owned()
+    };
+    // `%` starts a field code.
+    quoted.replace('%', "%%")
+}
+
+fn install_desktop(remove: bool) -> Result<()> {
+    let data = dirs::data_dir().context("no XDG data directory")?;
+    let entry = data.join("applications/hyper-pixel.desktop");
+    let icon = data.join("icons/hicolor/scalable/apps/hyper-pixel.svg");
+    if remove {
+        for p in [&entry, &icon] {
+            match std::fs::remove_file(p) {
+                Ok(()) => println!("removed {}", p.display()),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Err(e) => return Err(e).with_context(|| format!("removing {}", p.display())),
+            }
+        }
+        return Ok(());
+    }
+    let exe = std::env::current_exe()?.canonicalize()?;
+    let template = include_str!("../../../packaging/hyper-pixel.desktop");
+    let text: String = template
+        .lines()
+        .map(|l| {
+            if l.starts_with("Exec=") {
+                format!("Exec={}\n", desktop_exec_arg(&exe))
+            } else {
+                format!("{l}\n")
+            }
+        })
+        .collect();
+    for (path, bytes) in [
+        (&entry, text.as_bytes()),
+        (
+            &icon,
+            include_bytes!("../../../assets/hyper-pixel.svg").as_slice(),
+        ),
+    ] {
+        std::fs::create_dir_all(path.parent().unwrap())?;
+        std::fs::write(path, bytes).with_context(|| format!("writing {}", path.display()))?;
+        println!("wrote {}", path.display());
+    }
+    println!(
+        "Hyper Pixel is in the application menu. It starts {}; run this again if you move it.",
+        exe.display()
+    );
+    Ok(())
+}
+
+/// Parse `args` (including the program name) and run the command. Exits the process on
+/// `--help`, `--version` and usage errors.
+pub fn run<I, T>(args: I) -> Result<()>
+where
+    I: IntoIterator<Item = T>,
+    T: Into<OsString> + Clone,
+{
+    match Cli::parse_from(args).cmd {
         Cmd::Split {
             inputs,
             out,
@@ -467,7 +548,7 @@ fn main() -> Result<()> {
         }
         Cmd::Ocr { inputs, pdf, dpi } => {
             let ocr = hp_ocr::Ocr::load_default()
-                .context("OCR models missing — run `hyper-pixel-cli fetch-models`")?;
+                .context("OCR models missing — run `hyper-pixel fetch-models`")?;
             let mut pages = Vec::new();
             for input in &inputs {
                 let img = image::open(input)?;
@@ -524,6 +605,23 @@ fn main() -> Result<()> {
                 println!("{}\t{}", d.name, d.label());
             }
         }
+        Cmd::InstallDesktop { remove } => install_desktop(remove)?,
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::desktop_exec_arg;
+    use std::path::Path;
+
+    #[test]
+    fn desktop_exec_quoting() {
+        assert_eq!(
+            desktop_exec_arg(Path::new("/opt/hp/hyper-pixel")),
+            "/opt/hp/hyper-pixel"
+        );
+        assert_eq!(desktop_exec_arg(Path::new("/a b/100%")), "\"/a b/100%%\"");
+        assert_eq!(desktop_exec_arg(Path::new("/a $x")), "\"/a \\\\$x\"");
+    }
 }

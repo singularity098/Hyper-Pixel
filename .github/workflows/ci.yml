@@ -28,11 +28,11 @@ jobs:
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo test --workspace --release --locked
       - name: Detector benchmark (synthetic)
-        run: cargo run --release --locked -p hp-cli -- eval-synth --n 100 --dpi 75
+        run: cargo run --release --locked -p hp-app -- eval-synth --n 100 --dpi 75
       - name: Dust benchmark (synthetic)
         run: cargo run --release --locked -p hp-core --example eval_dust -- 20 600
 
-  appimage:
+  release:
     needs: check
     runs-on: ubuntu-24.04
     permissions:
@@ -46,22 +46,24 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libfontconfig-dev libxkbcommon-dev
-      - name: Build AppImage
-        run: ./packaging/build-appimage.sh
+      - name: Build binary
+        run: ./packaging/build-release.sh
       - uses: actions/upload-artifact@v4
         with:
-          name: Hyper-Pixel-AppImage
-          path: dist/*.AppImage
+          name: hyper-pixel
+          path: |
+            dist/hyper-pixel-*
+            !dist/ocr-models
       - name: Publish continuous build
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release delete continuous --yes --cleanup-tag || true
-          gh release create continuous dist/*.AppImage --prerelease --target "$GITHUB_SHA" \
-            --title "Continuous build" --notes "Latest build of main ($GITHUB_SHA). Download the AppImage, make it executable and run it."
+          gh release create continuous dist/hyper-pixel-* --prerelease --target "$GITHUB_SHA" \
+            --title "Continuous build" --notes "Latest build of main ($GITHUB_SHA). Download hyper-pixel-*, make it executable and run it."
       - name: Publish tagged release
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release create "$GITHUB_REF_NAME" dist/*.AppImage --title "Hyper Pixel $GITHUB_REF_NAME" --generate-notes
+        run: gh release create "$GITHUB_REF_NAME" dist/hyper-pixel-* --title "Hyper Pixel $GITHUB_REF_NAME" --generate-notes

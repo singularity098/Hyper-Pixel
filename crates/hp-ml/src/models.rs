@@ -2,9 +2,8 @@
 //!
 //! Models are looked up in, in order:
 //! 1. `$HYPER_PIXEL_MODELS`
-//! 2. `$APPDIR/usr/share/hyper-pixel/models` (bundled inside the AppImage)
-//! 3. `<exe dir>/../share/hyper-pixel/models`
-//! 4. `$XDG_DATA_HOME/hyper-pixel/models` (downloaded on demand)
+//! 2. `<exe dir>/../share/hyper-pixel/models`
+//! 3. `$XDG_DATA_HOME/hyper-pixel/models` (downloaded on demand)
 
 use sha2::{Digest, Sha256};
 use std::io::{Read, Seek, SeekFrom, Write};
@@ -123,9 +122,6 @@ pub fn model_dirs() -> Vec<PathBuf> {
     let mut cands: Vec<PathBuf> = Vec::new();
     if let Some(p) = std::env::var_os("HYPER_PIXEL_MODELS") {
         cands.push(p.into());
-    }
-    if let Some(p) = std::env::var_os("APPDIR") {
-        cands.push(PathBuf::from(p).join("usr/share/hyper-pixel/models"));
     }
     if let Ok(exe) = std::env::current_exe()
         && let Some(bin) = exe.parent()

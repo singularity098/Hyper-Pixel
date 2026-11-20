@@ -2,9 +2,9 @@
 //!
 //! Models (~12 MB) are looked up in, in order:
 //! 1. `$HYPER_PIXEL_MODELS`
-//! 2. `$APPDIR/usr/share/hyper-pixel/models` (bundled inside the AppImage)
-//! 3. `<exe dir>/../share/hyper-pixel/models`
-//! 4. `$XDG_DATA_HOME/hyper-pixel/models` (downloaded on demand)
+//! 2. `<exe dir>/../share/hyper-pixel/models`
+//! 3. `$XDG_DATA_HOME/hyper-pixel/models` (downloaded on demand)
+//! 4. Embedded in the binary (release builds, see `build.rs`)
 
 use hp_core::pdf::TextWord;
 use image::DynamicImage;
@@ -47,9 +47,6 @@ pub fn find_models() -> Option<PathBuf> {
     if let Some(p) = std::env::var_os("HYPER_PIXEL_MODELS") {
         cands.push(p.into());
     }
-    if let Some(p) = std::env::var_os("APPDIR") {
-        cands.push(PathBuf::from(p).join("usr/share/hyper-pixel/models"));
-    }
     if let Ok(exe) = std::env::current_exe()
         && let Some(bin) = exe.parent()
     {
@@ -57,6 +54,25 @@ pub fn find_models() -> Option<PathBuf> {
     }
     cands.push(user_model_dir());
     cands.into_iter().find(|d| has_models(d))
+}
+
+/// Models embedded in the binary: (detection, recognition).
+#[cfg(hp_bundled_ocr)]
+const BUNDLED: Option<(&[u8], &[u8])> = Some((
+    include_bytes!(env!("HP_OCR_DETECTION")),
+    include_bytes!(env!("HP_OCR_RECOGNITION")),
+));
+#[cfg(not(hp_bundled_ocr))]
+const BUNDLED: Option<(&[u8], &[u8])> = None;
+
+/// True if this binary carries the models itself.
+pub const fn models_bundled() -> bool {
+    BUNDLED.is_some()
+}
+
+/// True if OCR can run without downloading anything.
+pub fn models_available() -> bool {
+    models_bundled() || find_models().is_some()
 }
 
 /// Download the models into [`user_model_dir`]. `progress` receives (bytes done, total).
@@ -112,10 +128,13 @@ impl Ocr {
         if !has_models(dir) {
             return Err(OcrError::ModelsMissing);
         }
-        let det = rten::Model::load_file(dir.join(DETECTION_MODEL))
-            .map_err(|e| OcrError::Engine(e.to_string()))?;
-        let rec = rten::Model::load_file(dir.join(RECOGNITION_MODEL))
-            .map_err(|e| OcrError::Engine(e.to_string()))?;
+        let e = |e: rten::LoadError| OcrError::Engine(e.to_string());
+        let det = rten::Model::load_file(dir.join(DETECTION_MODEL)).map_err(e)?;
+        let rec = rten::Model::load_file(dir.join(RECOGNITION_MODEL)).map_err(e)?;
+        Self::new(det, rec)
+    }
+
+    fn new(det: rten::Model, rec: rten::Model) -> Result<Self> {
         let engine = OcrEngine::new(OcrEngineParams {
             detection_model: Some(det),
             recognition_model: Some(rec),
@@ -125,9 +144,17 @@ impl Ocr {
         Ok(Self { engine })
     }
 
-    /// Load from the first location that has models.
+    /// Load from the first location that has models, else the embedded ones.
     pub fn load_default() -> Result<Self> {
-        Self::load(&find_models().ok_or(OcrError::ModelsMissing)?)
+        if let Some(dir) = find_models() {
+            return Self::load(&dir);
+        }
+        let (det, rec) = BUNDLED.ok_or(OcrError::ModelsMissing)?;
+        let e = |e: rten::LoadError| OcrError::Engine(e.to_string());
+        Self::new(
+            rten::Model::load_static_slice(det).map_err(e)?,
+            rten::Model::load_static_slice(rec).map_err(e)?,
+        )
     }
 
     pub fn recognize(&self, img: &DynamicImage) -> Result<OcrPage> {

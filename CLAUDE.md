@@ -21,10 +21,10 @@ up to 4800 dpi). Defaults are tuned for it.
 |---|---|
 | `crates/hp-core` | All image processing, no GUI or scanner deps. `detect` (photo splitter), `crop` (rotated extraction, keeps 8/16-bit), `color` (presets, `is_monochrome`), `restore` (dust & scratch removal), `document` (deskew/whiten/Sauvola), `export` (all formats), `pdf` (minimal writer + invisible OCR text layer), `pipeline` (shared extract/enhance/name/save, `Enhancer` hook for neural steps), `synth` (synthetic scenes with ground truth), `synth_dust` (synthetic dusty prints + scoring), `eval` (scoring), `geom`, `raster`. |
 | `crates/hp-scan` | `Backend`/`Device` traits; `sane` (FFI via libloading), `mock` (demo scanners `mock:photos`, `mock:documents`). |
-| `crates/hp-ocr` | `ocrs`/`rten` wrapper, model lookup (`$HYPER_PIXEL_MODELS`, `$APPDIR/usr/share/hyper-pixel/models`, XDG data dir) and download. |
+| `crates/hp-ocr` | `ocrs`/`rten` wrapper, model lookup (`$HYPER_PIXEL_MODELS`, `<exe>/../share/hyper-pixel/models`, XDG data dir, then models embedded at build time when `HYPER_PIXEL_BUNDLE_OCR=<dir>` is set; see `build.rs`) and download. |
 | `crates/hp-ml` | CPU neural models via `rten`: `inpaint` (LaMa, 512² windows), `colorize` (DDColor), `models` (registry, download with SHA-256 check, streaming zip extraction), `MlEnhancer` (implements `pipeline::Enhancer`). |
-| `crates/hp-cli` | `hyper-pixel-cli`: `split`, `restore`, `ocr`, `eval`, `eval-synth`, `fetch-models [ocr\|ai\|all]`, `devices`. |
-| `crates/hp-app` | `hyper-pixel` GUI. `ui/app.slint` (fluent-dark style), `main.rs` (state + wiring, app state in a thread_local `App`), `worker.rs` (scanner thread: SANE must stay on one thread), `editor.rs` (crop-box interaction, unit-tested), `settings.rs` (persisted JSON in `~/.config/hyper-pixel`). |
+| `crates/hp-cli` | Library: the command line (`hp_cli::run`), linked into the `hyper-pixel` binary. `split`, `restore`, `ocr`, `eval`, `eval-synth`, `fetch-models [ocr\|ai\|all]`, `devices`, `install-desktop [--remove]`. |
+| `crates/hp-app` | The `hyper-pixel` binary, the only one shipped: with arguments it runs `hp_cli::run`, without them the GUI. `ui/app.slint` (fluent-dark style), `main.rs` (state + wiring, app state in a thread_local `App`), `worker.rs` (scanner thread: SANE must stay on one thread), `editor.rs` (crop-box interaction, unit-tested), `settings.rs` (persisted JSON in `~/.config/hyper-pixel`). |
 
 ## Key conventions
 - Detections and crop boxes are `RotatedRect`s in **bed millimetres** (`ScanGeometry`
@@ -73,7 +73,7 @@ failure:
 ## Detector benchmark
 Synthetic: `cargo run --release -p hp-core --example eval_synth -- <n> <dpi> <dark|light|mix> <gap_mm>`
 (with `HP_DUMP=<dir>`, it writes overlays of the failures; `HP_SCENES=<dir>` saves every
-scene with its truth, for `hyper-pixel-cli eval`) or `hyper-pixel-cli eval-synth`.
+scene with its truth, for `hyper-pixel eval`) or `cargo run --release -p hp-app -- eval-synth`.
 Baseline at 75 dpi with a 5 mm gap, 200 scenes:
 - Dark background: 190/200 scenes perfect, mean corner error 0.09 mm. The failures are
   near-black photos on black.
@@ -83,14 +83,14 @@ Baseline at 75 dpi with a 5 mm gap, 200 scenes:
 
 Real scans (the main yardstick): `samples/lide400/` holds ground truth for three of the
 owner's LiDE 400 scans (white lid and black foam, touching prints, photos running off the
-bed). The PNGs are private and gitignored; see the README there. `hyper-pixel-cli eval
+bed). The PNGs are private and gitignored; see the README there. `hyper-pixel eval
 samples/lide400` (add `--at-dpi 150` to simulate a preview). Baseline: at 600 and 300 dpi,
 12/12 photos, mean worst-corner error 0.18 mm, max 0.70 mm. At 150 dpi, 12/12, mean
 0.50 mm. At 75 dpi, the white-lid top pairs merge, which is why the preview default is
 150 dpi.
 
 New corpus scans: put `name.png` and `name.json` (`{"dpi":..,"photos":[RotatedRect mm]}`)
-in a `samples/` folder and run `hyper-pixel-cli eval <folder>`. `split --write-truth` creates
+in a `samples/` folder and run `hyper-pixel eval <folder>`. `split --write-truth` creates
 a starting JSON (it never overwrites one). Private scans go in `samples/private/`
 (gitignored).
 
@@ -150,10 +150,15 @@ automatically when SANE finds no devices. For CI, SANE's `test` backend is enabl
 `/etc/sane.d/dll.conf`.
 
 ## Packaging
-`packaging/build-appimage.sh` builds the AppImage, bundling the OCR models. The
-`.github/workflows/ci.yml` workflow runs fmt, clippy, tests and the benchmark, builds the
-AppImage, and publishes a `continuous` prerelease on every push to main. Tags `v*`
-create releases.
+Distributed as **one binary** (owner's choice; no AppImage). `packaging/build-release.sh`
+builds `dist/hyper-pixel-<version>-<arch>` (+ `.sha256`) with the OCR models embedded via
+`HYPER_PIXEL_BUNDLE_OCR`. It must stay a dynamically linked glibc binary (libsane and the
+GL/windowing libraries are `dlopen`ed), so the build host's glibc is the minimum (CI:
+ubuntu-24.04, glibc 2.39). `hyper-pixel install-desktop` writes a `.desktop` entry (from
+`packaging/hyper-pixel.desktop`, `Exec` set to the binary's path) and the SVG icon into
+`~/.local/share`. The `.github/workflows/ci.yml` workflow runs fmt, clippy, tests and the
+benchmarks, builds the binary, and publishes a `continuous` prerelease on every push to
+main. Tags `v*` create releases.
 
 Icon: `assets/hyper-pixel.svg` is the source (a stack of prints, the front one dissolving into
 pixels; no background tile, the viewBox is fitted to the artwork so it fills the icon). `assets/hyper-pixel.png` (512) and `hyper-pixel-128.png` are

@@ -30,13 +30,20 @@ and saved as its own file.
 
 ## Install
 
-Download the AppImage from the [continuous release](https://github.com/singularity098/Hyper-Pixel/releases/tag/continuous),
-then:
+Hyper Pixel is a single binary. Download `hyper-pixel-*-x86_64` from the
+[continuous release](https://github.com/singularity098/Hyper-Pixel/releases/tag/continuous),
+put it somewhere permanent (for example `~/.local/bin/hyper-pixel`), then:
 
 ```bash
-chmod +x Hyper_Pixel-*-x86_64.AppImage
-./Hyper_Pixel-*-x86_64.AppImage
+chmod +x ~/.local/bin/hyper-pixel
 ```
+
+```bash
+hyper-pixel install-desktop   # optional: add it to the application menu
+```
+
+Run `hyper-pixel` without arguments to open the app. It needs glibc 2.39 or newer
+(Ubuntu 24.04, Fedora 40, Debian 13 or later).
 
 You need your distribution's SANE package (`sane`, `sane-backends` or `libsane1`). Check
 that your scanner shows up with `scanimage -L`.
@@ -53,22 +60,22 @@ that your scanner shows up with `scanimage -L`.
 
 ## Command line
 
-The AppImage also contains `hyper-pixel-cli`:
+Given arguments, the same binary works as a command-line tool (`hyper-pixel --help`):
 
 ```bash
-./Hyper_Pixel.AppImage cli split scans/*.png -o photos --color restore   # split existing scans
-./Hyper_Pixel.AppImage cli restore old/*.jpg -o clean --dust normal --colorize  # restore photos
-./Hyper_Pixel.AppImage cli fetch-models ai                                # AI models (~410 MB)
-./Hyper_Pixel.AppImage cli ocr page1.png page2.png --pdf doc.pdf          # OCR to searchable PDF
-./Hyper_Pixel.AppImage cli devices                                        # list scanners
+hyper-pixel split scans/*.png -o photos --color restore          # split existing scans
+hyper-pixel restore old/*.jpg -o clean --dust normal --colorize  # restore photos
+hyper-pixel fetch-models ai                                      # AI models (~410 MB)
+hyper-pixel ocr page1.png page2.png --pdf doc.pdf                # OCR to searchable PDF
+hyper-pixel devices                                              # list scanners
 ```
 
 ## Building
 
 ```bash
-cargo build --release          # binaries: hyper-pixel, hyper-pixel-cli
+cargo build --release          # target/release/hyper-pixel (OCR models downloaded on first use)
 HYPER_PIXEL_MOCK=1 cargo run --release -p hp-app   # run with demo scanners, no hardware needed
-./packaging/build-appimage.sh  # dist/Hyper_Pixel-*.AppImage
+./packaging/build-release.sh   # dist/hyper-pixel-<version>-<arch>, OCR models embedded
 ```
 
 ## License
