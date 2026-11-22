@@ -5,7 +5,12 @@ Owner's scanner: **Canon CanoScan LiDE 400** (SANE `pixma` backend, A4 bed 216×
 up to 4800 dpi). Defaults are tuned for it.
 
 ## Workflow rules
-- **Always commit and push directly to `main`** (owner's explicit choice). No PRs unless asked.
+- **Commit and push directly to `main`.** Don't create feature branches or open pull requests
+  unless the owner asks for one.
+- Claude Code setups (the web version especially) may create their own working branch for the
+  session. Even then, don't use that branch: commit on `main` and push `main`
+  (`git push origin HEAD:main`). Don't push the session branch.
+- This is a solo project: branches and PRs add very little here and create unwanted overhead.
 - Keep this file current: update it whenever architecture, conventions or milestones change.
 - Toolchain is pinned in `rust-toolchain.toml`; bump it deliberately (and fix new lints).
 - Before pushing: `cargo fmt --all`, `cargo clippy --workspace --all-targets -- -D warnings`,
