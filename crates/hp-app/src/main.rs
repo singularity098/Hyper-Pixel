@@ -1214,8 +1214,9 @@ fn ai_models_ready() -> bool {
     hp_ml::LAMA.find().is_some() && hp_ml::DDCOLOR.find().is_some()
 }
 
-/// The highlight colour, `Theme.accent` in `app.slint` (a reddish burnt orange).
-const ACCENT: slint::Color = slint::Color::from_rgb_u8(0xe2, 0x62, 0x2f);
+/// The highlight colour, `Theme.accent` in `app.slint` (the vivid orange midpoint of the
+/// red → orange → amber accent gradient).
+const ACCENT: slint::Color = slint::Color::from_rgb_u8(0xff, 0x6a, 0x1c);
 
 /// Tint Slint's Fluent widgets (switches, sliders, focus rings) with [`ACCENT`] instead of
 /// Fluent blue. Slint has no public API for this, and on Linux it applies the desktop's

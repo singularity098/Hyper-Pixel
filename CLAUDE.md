@@ -47,7 +47,10 @@ up to 4800 dpi). Defaults are tuned for it.
 - Name: **HyperScan** (formerly Hyper Pixel). Binary, config/data dirs and `.desktop` id are
   `hyperscan`, env vars `HYPERSCAN_*`. `hp_cli::migrate_legacy` (run at every start) renames old
   `hyper-pixel` config/data dirs and replaces an old `hyper-pixel` menu entry.
-- Highlight colour: reddish burnt orange `#e2622f` (`Theme.accent` in `app.slint`). Fluent widgets
+- Highlight: a red → orange → amber gradient (`#ff3d1f` → `#ff6a1c` → `#ffa21e`, `Theme.accent-fill`
+  plus hover/pressed variants) on filled surfaces (active segments, primary buttons, the selected
+  box badge, the progress bar), echoing the icon's red laser. Strokes, handles and small marks use
+  the solid midpoint `#ff6a1c` (`Theme.accent`). Fluent widgets
   (switches, sliders) take Slint's context accent instead; `keep_accent` in `main.rs` sets it via
   Slint's private API and re-asserts it on a 500 ms timer, because on Linux the XDG portal
   pushes the desktop accent. Keep the two in sync; re-check after Slint upgrades.
@@ -173,7 +176,8 @@ benchmarks, builds the binary, and publishes a `continuous` prerelease on every 
 main. Tags `v*` create releases.
 
 Icon: `assets/hyperscan.svg` is the source ("Midnight Flatbed": a dark flatbed on a dark
-rounded tile, lid raised, two prints on the glass, a red laser line near the front edge). It is
+rounded tile, lid raised, two prints on the glass, a red-orange laser line `#ff4520` near the front edge, matching the red end
+of the UI accent gradient). It is
 deliberately static: KDE and most launchers cannot animate icons, so it is one chosen frame of an
 animated concept, with the laser at 80% of the way from hinge to front (the lid then barely shows
 the red cast, which keeps the outline clean at 16–22 px). It uses gradients and a Gaussian-blur
