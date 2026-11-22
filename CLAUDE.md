@@ -1,4 +1,4 @@
-# Hyper Pixel — notes for Claude
+# HyperScan — notes for Claude
 
 Desktop scanner app for Linux, written in Rust with a Slint UI. GPL-3.0-or-later.
 Owner's scanner: **Canon CanoScan LiDE 400** (SANE `pixma` backend, A4 bed 216×297 mm,
@@ -26,10 +26,10 @@ up to 4800 dpi). Defaults are tuned for it.
 |---|---|
 | `crates/hp-core` | All image processing, no GUI or scanner deps. `detect` (photo splitter), `crop` (rotated extraction, keeps 8/16-bit), `color` (presets, `is_monochrome`), `restore` (dust & scratch removal), `document` (deskew/whiten/Sauvola), `export` (all formats), `pdf` (minimal writer + invisible OCR text layer), `pipeline` (shared extract/enhance/name/save, `Enhancer` hook for neural steps), `synth` (synthetic scenes with ground truth), `synth_dust` (synthetic dusty prints + scoring), `eval` (scoring), `geom`, `raster`. |
 | `crates/hp-scan` | `Backend`/`Device` traits; `sane` (FFI via libloading), `mock` (demo scanners `mock:photos`, `mock:documents`). |
-| `crates/hp-ocr` | `ocrs`/`rten` wrapper, model lookup (`$HYPER_PIXEL_MODELS`, `<exe>/../share/hyper-pixel/models`, XDG data dir, then models embedded at build time when `HYPER_PIXEL_BUNDLE_OCR=<dir>` is set; see `build.rs`) and download. |
+| `crates/hp-ocr` | `ocrs`/`rten` wrapper, model lookup (`$HYPERSCAN_MODELS`, `<exe>/../share/hyperscan/models`, XDG data dir, then models embedded at build time when `HYPERSCAN_BUNDLE_OCR=<dir>` is set; see `build.rs`) and download. |
 | `crates/hp-ml` | CPU neural models via `rten`: `inpaint` (LaMa, 512² windows), `colorize` (DDColor), `models` (registry, download with SHA-256 check, streaming zip extraction), `MlEnhancer` (implements `pipeline::Enhancer`). |
-| `crates/hp-cli` | Library: the command line (`hp_cli::run`), linked into the `hyper-pixel` binary. `split`, `restore`, `ocr`, `eval`, `eval-synth`, `fetch-models [ocr\|ai\|all]`, `devices`, `install-desktop [--remove]`. |
-| `crates/hp-app` | The `hyper-pixel` binary, the only one shipped: with arguments it runs `hp_cli::run`, without them the GUI. `ui/app.slint` (fluent-dark style), `main.rs` (state + wiring, app state in a thread_local `App`), `worker.rs` (scanner thread: SANE must stay on one thread), `editor.rs` (crop-box interaction, unit-tested), `settings.rs` (persisted JSON in `~/.config/hyper-pixel`). |
+| `crates/hp-cli` | Library: the command line (`hp_cli::run`), linked into the `hyperscan` binary. `split`, `restore`, `ocr`, `eval`, `eval-synth`, `fetch-models [ocr\|ai\|all]`, `devices`, `install-desktop [--remove]`. |
+| `crates/hp-app` | The `hyperscan` binary, the only one shipped: with arguments it runs `hp_cli::run`, without them the GUI. `ui/app.slint` (fluent-dark style), `main.rs` (state + wiring, app state in a thread_local `App`), `worker.rs` (scanner thread: SANE must stay on one thread), `editor.rs` (crop-box interaction, unit-tested), `settings.rs` (persisted JSON in `~/.config/hyperscan`). |
 
 ## Key conventions
 - Detections and crop boxes are `RotatedRect`s in **bed millimetres** (`ScanGeometry`
@@ -44,6 +44,13 @@ up to 4800 dpi). Defaults are tuned for it.
 - Corner magnifier: the canvas shows a loupe (`Loupe` in `app.slint`) beside the pointer when it
   is on a box corner, while dragging a corner or drawing a box (`Editor::is_placing_point`), or
   while Shift is held. The mouse wheel sets its zoom (2–16×). Both settings are persisted.
+- Name: **HyperScan** (formerly Hyper Pixel). Binary, config/data dirs and `.desktop` id are
+  `hyperscan`, env vars `HYPERSCAN_*`. `hp_cli::migrate_legacy` (run at every start) renames old
+  `hyper-pixel` config/data dirs and replaces an old `hyper-pixel` menu entry.
+- Highlight colour: reddish burnt orange `#e2622f` (`Theme.accent` in `app.slint`). Fluent widgets
+  (switches, sliders) take Slint's context accent instead; `keep_accent` in `main.rs` sets it via
+  Slint's private API and re-asserts it on a 500 ms timer, because on Linux the XDG portal
+  pushes the desktop accent. Keep the two in sync; re-check after Slint upgrades.
 - Custom window frame: `MainWindow` has `no-frame: true`. The toolbar's empty space and the
   sidebar logo header are `DragArea`s (drag moves via winit `drag_window`, double click maximises).
   Minimise/maximise/close are `WindowButton`s at the right of the toolbar (close is red only on
@@ -52,7 +59,7 @@ up to 4800 dpi). Defaults are tuned for it.
   without it, later clicks all go to the drag area.
 - Sidebar padding (18 px) is set per row, not on the outer layout, so the `ScrollView` spans the
   panel and its scrollbar sits in the right gutter instead of over the controls.
-- The sidebar logo is the SVG (`assets/hyper-pixel.svg`), rasterised at its displayed size.
+- The sidebar logo is the SVG (`assets/hyperscan.svg`), rasterised at its displayed size.
   Shrinking the 512 px PNG aliases.
 - Preview default is 150 dpi (thin seams between touching prints vanish at 75 dpi). A saved
   75 from older versions is migrated on load.
@@ -78,7 +85,7 @@ failure:
 ## Detector benchmark
 Synthetic: `cargo run --release -p hp-core --example eval_synth -- <n> <dpi> <dark|light|mix> <gap_mm>`
 (with `HP_DUMP=<dir>`, it writes overlays of the failures; `HP_SCENES=<dir>` saves every
-scene with its truth, for `hyper-pixel eval`) or `cargo run --release -p hp-app -- eval-synth`.
+scene with its truth, for `hyperscan eval`) or `cargo run --release -p hp-app -- eval-synth`.
 Baseline at 75 dpi with a 5 mm gap, 200 scenes:
 - Dark background: 190/200 scenes perfect, mean corner error 0.09 mm. The failures are
   near-black photos on black.
@@ -88,14 +95,14 @@ Baseline at 75 dpi with a 5 mm gap, 200 scenes:
 
 Real scans (the main yardstick): `samples/lide400/` holds ground truth for three of the
 owner's LiDE 400 scans (white lid and black foam, touching prints, photos running off the
-bed). The PNGs are private and gitignored; see the README there. `hyper-pixel eval
+bed). The PNGs are private and gitignored; see the README there. `hyperscan eval
 samples/lide400` (add `--at-dpi 150` to simulate a preview). Baseline: at 600 and 300 dpi,
 12/12 photos, mean worst-corner error 0.18 mm, max 0.70 mm. At 150 dpi, 12/12, mean
 0.50 mm. At 75 dpi, the white-lid top pairs merge, which is why the preview default is
 150 dpi.
 
 New corpus scans: put `name.png` and `name.json` (`{"dpi":..,"photos":[RotatedRect mm]}`)
-in a `samples/` folder and run `hyper-pixel eval <folder>`. `split --write-truth` creates
+in a `samples/` folder and run `hyperscan eval <folder>`. `split --write-truth` creates
 a starting JSON (it never overwrites one). Private scans go in `samples/private/`
 (gitignored).
 
@@ -150,29 +157,29 @@ and measured worse than the existing Restore faded preset on synthetic fades, so
 Real dusty scans would be the better yardstick; none are in the corpus yet.
 
 ## Running without hardware
-`HYPER_PIXEL_MOCK=1 cargo run --release -p hp-app`. Demo scanners also appear
+`HYPERSCAN_MOCK=1 cargo run --release -p hp-app`. Demo scanners also appear
 automatically when SANE finds no devices. For CI, SANE's `test` backend is enabled in
 `/etc/sane.d/dll.conf`.
 
 ## Packaging
 Distributed as **one binary** (owner's choice; no AppImage). `packaging/build-release.sh`
-builds `dist/hyper-pixel-<version>-<arch>` (+ `.sha256`) with the OCR models embedded via
-`HYPER_PIXEL_BUNDLE_OCR`. It must stay a dynamically linked glibc binary (libsane and the
+builds `dist/hyperscan-<version>-<arch>` (+ `.sha256`) with the OCR models embedded via
+`HYPERSCAN_BUNDLE_OCR`. It must stay a dynamically linked glibc binary (libsane and the
 GL/windowing libraries are `dlopen`ed), so the build host's glibc is the minimum (CI:
-ubuntu-24.04, glibc 2.39). `hyper-pixel install-desktop` writes a `.desktop` entry (from
-`packaging/hyper-pixel.desktop`, `Exec` set to the binary's path) and the SVG icon into
+ubuntu-24.04, glibc 2.39). `hyperscan install-desktop` writes a `.desktop` entry (from
+`packaging/hyperscan.desktop`, `Exec` set to the binary's path) and the SVG icon into
 `~/.local/share`. The `.github/workflows/ci.yml` workflow runs fmt, clippy, tests and the
 benchmarks, builds the binary, and publishes a `continuous` prerelease on every push to
 main. Tags `v*` create releases.
 
-Icon: `assets/hyper-pixel.svg` is the source ("Midnight Flatbed": a dark flatbed on a dark
+Icon: `assets/hyperscan.svg` is the source ("Midnight Flatbed": a dark flatbed on a dark
 rounded tile, lid raised, two prints on the glass, a red laser line near the front edge). It is
 deliberately static: KDE and most launchers cannot animate icons, so it is one chosen frame of an
 animated concept, with the laser at 80% of the way from hinge to front (the lid then barely shows
 the red cast, which keeps the outline clean at 16–22 px). It uses gradients and a Gaussian-blur
-glow, both of which Slint's renderer handles. `assets/hyper-pixel.png` (512) and `hyper-pixel-128.png`
+glow, both of which Slint's renderer handles. `assets/hyperscan.png` (512) and `hyperscan-128.png`
 are rendered from it with headless Chromium, not drawn by hand; re-render them after editing the SVG.
-Wordmark: "Hyper Pixel" semibold with the tagline "SCAN · SPLIT · RESTORE" letter-spaced below.
+Wordmark: "HyperScan" semibold with the tagline "SCAN · SPLIT · RESTORE" letter-spaced below.
 
 ## Roadmap / ideas
 - Grow the real-scan corpus (`samples/lide400/` has 3 scans): white-bordered prints on the

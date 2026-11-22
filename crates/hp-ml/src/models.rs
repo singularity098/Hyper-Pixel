@@ -1,9 +1,9 @@
 //! Model files: where they are looked up, how they are downloaded and verified.
 //!
 //! Models are looked up in, in order:
-//! 1. `$HYPER_PIXEL_MODELS`
-//! 2. `<exe dir>/../share/hyper-pixel/models`
-//! 3. `$XDG_DATA_HOME/hyper-pixel/models` (downloaded on demand)
+//! 1. `$HYPERSCAN_MODELS`
+//! 2. `<exe dir>/../share/hyperscan/models`
+//! 3. `$XDG_DATA_HOME/hyperscan/models` (downloaded on demand)
 
 use sha2::{Digest, Sha256};
 use std::io::{Read, Seek, SeekFrom, Write};
@@ -113,20 +113,20 @@ pub const DDCOLOR: ModelSpec = ModelSpec {
 pub fn user_model_dir() -> PathBuf {
     dirs::data_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join("hyper-pixel")
+        .join("hyperscan")
         .join("models")
 }
 
 /// Candidate model directories, in lookup order.
 pub fn model_dirs() -> Vec<PathBuf> {
     let mut cands: Vec<PathBuf> = Vec::new();
-    if let Some(p) = std::env::var_os("HYPER_PIXEL_MODELS") {
+    if let Some(p) = std::env::var_os("HYPERSCAN_MODELS") {
         cands.push(p.into());
     }
     if let Ok(exe) = std::env::current_exe()
         && let Some(bin) = exe.parent()
     {
-        cands.push(bin.join("../share/hyper-pixel/models"));
+        cands.push(bin.join("../share/hyperscan/models"));
     }
     cands.push(user_model_dir());
     cands

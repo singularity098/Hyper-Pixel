@@ -1,10 +1,10 @@
-# Hyper Pixel
+# HyperScan
 
-A fast, dark-themed scanner app for Linux. Hyper Pixel's main feature is **rapid photo scanning**:
+A fast, dark-themed scanner app for Linux. HyperScan's main feature is **rapid photo scanning**:
 lay several prints on the flatbed, press one button, and get each photo cropped, straightened
 and saved as its own file.
 
-![Hyper Pixel](docs/screenshot.png)
+![HyperScan](docs/screenshot.png)
 
 - **Automatic multi-photo splitting** in pure Rust. Edges are located to a fraction of a
   pixel and straightened with bicubic resampling.
@@ -30,19 +30,19 @@ and saved as its own file.
 
 ## Install
 
-Hyper Pixel is a single binary. Download `hyper-pixel-*-x86_64` from the
-[continuous release](https://github.com/singularity098/Hyper-Pixel/releases/tag/continuous),
-put it somewhere permanent (for example `~/.local/bin/hyper-pixel`), then:
+HyperScan is a single binary. Download `hyperscan-*-x86_64` from the
+[continuous release](https://github.com/singularity098/HyperScan/releases/tag/continuous),
+put it somewhere permanent (for example `~/.local/bin/hyperscan`), then:
 
 ```bash
-chmod +x ~/.local/bin/hyper-pixel
+chmod +x ~/.local/bin/hyperscan
 ```
 
 ```bash
-hyper-pixel install-desktop   # optional: add it to the application menu
+hyperscan install-desktop   # optional: add it to the application menu
 ```
 
-Run `hyper-pixel` without arguments to open the app. It needs glibc 2.39 or newer
+Run `hyperscan` without arguments to open the app. It needs glibc 2.39 or newer
 (Ubuntu 24.04, Fedora 40, Debian 13 or later).
 
 You need your distribution's SANE package (`sane`, `sane-backends` or `libsane1`). Check
@@ -52,7 +52,7 @@ that your scanner shows up with `scanimage -L`.
 
 - **Put a black sheet of paper or card behind the photos**, under the lid. It gives the most
   reliable edge detection, especially for photos with white borders.
-- Leave a few millimetres between prints. Hyper Pixel can split photos that touch, but gaps
+- Leave a few millimetres between prints. HyperScan can split photos that touch, but gaps
   are more reliable.
 - 600 dpi (the default) captures everything a typical print holds. Use 1200 dpi with 16-bit
   TIFF for archival masters or small prints you want to enlarge.
@@ -60,22 +60,22 @@ that your scanner shows up with `scanimage -L`.
 
 ## Command line
 
-Given arguments, the same binary works as a command-line tool (`hyper-pixel --help`):
+Given arguments, the same binary works as a command-line tool (`hyperscan --help`):
 
 ```bash
-hyper-pixel split scans/*.png -o photos --color restore          # split existing scans
-hyper-pixel restore old/*.jpg -o clean --dust normal --colorize  # restore photos
-hyper-pixel fetch-models ai                                      # AI models (~410 MB)
-hyper-pixel ocr page1.png page2.png --pdf doc.pdf                # OCR to searchable PDF
-hyper-pixel devices                                              # list scanners
+hyperscan split scans/*.png -o photos --color restore          # split existing scans
+hyperscan restore old/*.jpg -o clean --dust normal --colorize  # restore photos
+hyperscan fetch-models ai                                      # AI models (~410 MB)
+hyperscan ocr page1.png page2.png --pdf doc.pdf                # OCR to searchable PDF
+hyperscan devices                                              # list scanners
 ```
 
 ## Building
 
 ```bash
-cargo build --release          # target/release/hyper-pixel (OCR models downloaded on first use)
-HYPER_PIXEL_MOCK=1 cargo run --release -p hp-app   # run with demo scanners, no hardware needed
-./packaging/build-release.sh   # dist/hyper-pixel-<version>-<arch>, OCR models embedded
+cargo build --release          # target/release/hyperscan (OCR models downloaded on first use)
+HYPERSCAN_MOCK=1 cargo run --release -p hp-app   # run with demo scanners, no hardware needed
+./packaging/build-release.sh   # dist/hyperscan-<version>-<arch>, OCR models embedded
 ```
 
 ## License

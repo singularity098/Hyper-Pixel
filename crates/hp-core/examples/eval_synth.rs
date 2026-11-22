@@ -30,7 +30,7 @@ fn main() {
             &DetectParams::default(),
         );
         let det: Vec<_> = rep.photos.iter().map(|d| d.rect).collect();
-        // HP_SCENES=<dir>: also save each raw scene and its truth, for `hyper-pixel eval`.
+        // HP_SCENES=<dir>: also save each raw scene and its truth, for `hyperscan eval`.
         if let Ok(dir) = std::env::var("HP_SCENES") {
             let _ = scene.image.save(format!("{dir}/scene_{seed}.png"));
             let truth = serde_json::json!({ "dpi": dpi, "photos": scene.truth });

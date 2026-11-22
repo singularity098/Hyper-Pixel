@@ -1,6 +1,6 @@
 [package]
 name = "hp-ocr"
-description = "OCR for Hyper Pixel (pure-Rust ocrs engine), model management"
+description = "OCR for HyperScan (pure-Rust ocrs engine), model management"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

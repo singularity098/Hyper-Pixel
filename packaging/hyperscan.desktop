@@ -1,11 +1,11 @@
 [Desktop Entry]
 Type=Application
-Name=Hyper Pixel
+Name=HyperScan
 GenericName=Scanner
 Comment=Scan photos and documents; automatically split multiple photos
-Exec=hyper-pixel
-Icon=hyper-pixel
+Exec=hyperscan
+Icon=hyperscan
 Terminal=false
 Categories=Graphics;Scanning;Photography;
 Keywords=scan;scanner;photo;sane;ocr;pdf;
-StartupWMClass=hyper-pixel
+StartupWMClass=hyperscan

@@ -1,13 +1,13 @@
 [package]
 name = "hp-app"
-description = "Hyper Pixel desktop scanner application"
+description = "HyperScan desktop scanner application"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 
 [[bin]]
-name = "hyper-pixel"
+name = "hyperscan"
 path = "src/main.rs"
 
 [dependencies]

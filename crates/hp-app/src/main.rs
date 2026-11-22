@@ -1,4 +1,4 @@
-//! Hyper Pixel desktop application.
+//! HyperScan desktop application.
 
 mod editor;
 mod settings;
@@ -1214,8 +1214,39 @@ fn ai_models_ready() -> bool {
     hp_ml::LAMA.find().is_some() && hp_ml::DDCOLOR.find().is_some()
 }
 
+/// The highlight colour, `Theme.accent` in `app.slint` (a reddish burnt orange).
+const ACCENT: slint::Color = slint::Color::from_rgb_u8(0xe2, 0x62, 0x2f);
+
+/// Tint Slint's Fluent widgets (switches, sliders, focus rings) with [`ACCENT`] instead of
+/// Fluent blue. Slint has no public API for this, and on Linux it applies the desktop's
+/// accent colour once the XDG portal answers (and whenever it changes), so the colour is
+/// re-asserted by a cheap timer. Uses Slint's private API: re-check on Slint upgrades.
+fn keep_accent(ui: &MainWindow) -> slint::Timer {
+    use slint::private_unstable_api::re_exports::WindowInner;
+    let set = |ui: &MainWindow| {
+        let ctx = WindowInner::from_pub(ui.window()).context();
+        if ctx.accent_color() != ACCENT {
+            ctx.set_accent_color(ACCENT);
+        }
+    };
+    set(ui);
+    let timer = slint::Timer::default();
+    let weak = ui.as_weak();
+    timer.start(
+        slint::TimerMode::Repeated,
+        std::time::Duration::from_millis(500),
+        move || {
+            if let Some(ui) = weak.upgrade() {
+                set(&ui);
+            }
+        },
+    );
+    timer
+}
+
 fn main() -> Result<(), slint::PlatformError> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    hp_cli::migrate_legacy();
     // One binary: with arguments it is the command line, without them the app.
     if std::env::args_os().len() > 1 {
         if let Err(e) = hp_cli::run(std::env::args_os()) {
@@ -1274,6 +1305,7 @@ fn main() -> Result<(), slint::PlatformError> {
         a.worker.send(Command::ListDevices);
     });
     wire(&ui);
+    let _accent = keep_accent(&ui);
     let r = ui.run();
     APP.with(|a| *a.borrow_mut() = None);
     r

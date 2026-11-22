@@ -1,6 +1,6 @@
 [package]
 name = "hp-ml"
-description = "Hyper Pixel neural models (pure-Rust rten): inpainting, colourisation, model management"
+description = "HyperScan neural models (pure-Rust rten): inpainting, colourisation, model management"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

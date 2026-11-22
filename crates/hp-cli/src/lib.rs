@@ -1,5 +1,5 @@
-//! Hyper Pixel's command line: headless tools around the engine. It is linked into the
-//! `hyper-pixel` binary, which runs these commands when given arguments and opens the app
+//! HyperScan's command line: headless tools around the engine. It is linked into the
+//! `hyperscan` binary, which runs these commands when given arguments and opens the app
 //! when started without any.
 
 use anyhow::{Context, Result, bail};
@@ -18,9 +18,9 @@ use std::path::{Path, PathBuf};
 
 #[derive(Parser)]
 #[command(
-    name = "hyper-pixel",
+    name = "hyperscan",
     version,
-    about = "Hyper Pixel: scan, split and restore photos",
+    about = "HyperScan: scan, split and restore photos",
     after_help = "Run without arguments to open the scanner app."
 )]
 struct Cli {
@@ -102,7 +102,7 @@ impl RestoreArgs {
     fn enhancer(&self) -> Result<hp_ml::MlEnhancer> {
         let e = hp_ml::MlEnhancer::load(self.ai_fill, self.colorize);
         if (self.ai_fill && e.inpainter.is_none()) || (self.colorize && e.colorizer.is_none()) {
-            bail!("AI models missing — run `hyper-pixel fetch-models ai`");
+            bail!("AI models missing — run `hyperscan fetch-models ai`");
         }
         Ok(e)
     }
@@ -191,7 +191,7 @@ enum Cmd {
     },
     /// List scanners.
     Devices,
-    /// Add Hyper Pixel to the application menu (a `.desktop` entry and icon in
+    /// Add HyperScan to the application menu (a `.desktop` entry and icon in
     /// ~/.local/share that start this binary).
     InstallDesktop {
         /// Remove the entry and icon instead.
@@ -261,8 +261,8 @@ fn desktop_exec_arg(path: &Path) -> String {
 
 fn install_desktop(remove: bool) -> Result<()> {
     let data = dirs::data_dir().context("no XDG data directory")?;
-    let entry = data.join("applications/hyper-pixel.desktop");
-    let icon = data.join("icons/hicolor/scalable/apps/hyper-pixel.svg");
+    let entry = data.join("applications/hyperscan.desktop");
+    let icon = data.join("icons/hicolor/scalable/apps/hyperscan.svg");
     if remove {
         for p in [&entry, &icon] {
             match std::fs::remove_file(p) {
@@ -274,7 +274,7 @@ fn install_desktop(remove: bool) -> Result<()> {
         return Ok(());
     }
     let exe = std::env::current_exe()?.canonicalize()?;
-    let template = include_str!("../../../packaging/hyper-pixel.desktop");
+    let template = include_str!("../../../packaging/hyperscan.desktop");
     let text: String = template
         .lines()
         .map(|l| {
@@ -289,7 +289,7 @@ fn install_desktop(remove: bool) -> Result<()> {
         (&entry, text.as_bytes()),
         (
             &icon,
-            include_bytes!("../../../assets/hyper-pixel.svg").as_slice(),
+            include_bytes!("../../../assets/hyperscan.svg").as_slice(),
         ),
     ] {
         std::fs::create_dir_all(path.parent().unwrap())?;
@@ -297,10 +297,44 @@ fn install_desktop(remove: bool) -> Result<()> {
         println!("wrote {}", path.display());
     }
     println!(
-        "Hyper Pixel is in the application menu. It starts {}; run this again if you move it.",
+        "HyperScan is in the application menu. It starts {}; run this again if you move it.",
         exe.display()
     );
     Ok(())
+}
+
+/// Carry state over from when the app was called Hyper Pixel: rename the old
+/// `hyper-pixel` config and data directories (settings, downloaded models) unless the new
+/// ones exist, and replace an installed `hyper-pixel` menu entry with a `hyperscan` one.
+/// Errors are logged, never fatal.
+pub fn migrate_legacy() {
+    const OLD: &str = "hyper-pixel";
+    const NEW: &str = "hyperscan";
+    for base in [dirs::config_dir(), dirs::data_dir()].into_iter().flatten() {
+        let (old, new) = (base.join(OLD), base.join(NEW));
+        if old.is_dir() && !new.exists() {
+            match std::fs::rename(&old, &new) {
+                Ok(()) => log::info!("moved {} to {}", old.display(), new.display()),
+                Err(e) => log::warn!("could not move {}: {e}", old.display()),
+            }
+        }
+    }
+    let Some(data) = dirs::data_dir() else { return };
+    let old_entry = data.join(format!("applications/{OLD}.desktop"));
+    if !old_entry.is_file() {
+        return;
+    }
+    let old_icon = data.join(format!("icons/hicolor/scalable/apps/{OLD}.svg"));
+    for p in [&old_entry, &old_icon] {
+        if let Err(e) = std::fs::remove_file(p)
+            && e.kind() != std::io::ErrorKind::NotFound
+        {
+            log::warn!("could not remove {}: {e}", p.display());
+        }
+    }
+    if let Err(e) = install_desktop(false) {
+        log::warn!("could not install the menu entry: {e:#}");
+    }
 }
 
 /// Parse `args` (including the program name) and run the command. Exits the process on
@@ -548,7 +582,7 @@ where
         }
         Cmd::Ocr { inputs, pdf, dpi } => {
             let ocr = hp_ocr::Ocr::load_default()
-                .context("OCR models missing — run `hyper-pixel fetch-models`")?;
+                .context("OCR models missing — run `hyperscan fetch-models`")?;
             let mut pages = Vec::new();
             for input in &inputs {
                 let img = image::open(input)?;
@@ -618,8 +652,8 @@ mod tests {
     #[test]
     fn desktop_exec_quoting() {
         assert_eq!(
-            desktop_exec_arg(Path::new("/opt/hp/hyper-pixel")),
-            "/opt/hp/hyper-pixel"
+            desktop_exec_arg(Path::new("/opt/hp/hyperscan")),
+            "/opt/hp/hyperscan"
         );
         assert_eq!(desktop_exec_arg(Path::new("/a b/100%")), "\"/a b/100%%\"");
         assert_eq!(desktop_exec_arg(Path::new("/a $x")), "\"/a \\\\$x\"");

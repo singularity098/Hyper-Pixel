@@ -1,4 +1,4 @@
-//! Core image processing for Hyper Pixel. No GUI or scanner dependencies, so everything
+//! Core image processing for HyperScan. No GUI or scanner dependencies, so everything
 //! here is testable headless.
 
 pub mod color;

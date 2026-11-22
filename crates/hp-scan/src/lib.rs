@@ -1,4 +1,4 @@
-//! Scanner access for Hyper Pixel.
+//! Scanner access for HyperScan.
 //!
 //! [`Backend`] enumerates and opens devices; [`Device`] exposes options and performs scans.
 //! Two backends are provided:
@@ -325,9 +325,9 @@ pub fn raw_to_image(
 }
 
 /// Open the best available backend: SANE if the library loads, else the mock backend.
-/// Set `HYPER_PIXEL_MOCK=1` to force the mock backend.
+/// Set `HYPERSCAN_MOCK=1` to force the mock backend.
 pub fn default_backend() -> (Box<dyn Backend>, Option<ScanError>) {
-    if std::env::var_os("HYPER_PIXEL_MOCK").is_some() {
+    if std::env::var_os("HYPERSCAN_MOCK").is_some() {
         return (Box::new(mock::MockBackend::new()), None);
     }
     match sane::SaneBackend::new() {

@@ -50,9 +50,9 @@ jobs:
         run: ./packaging/build-release.sh
       - uses: actions/upload-artifact@v4
         with:
-          name: hyper-pixel
+          name: hyperscan
           path: |
-            dist/hyper-pixel-*
+            dist/hyperscan-*
             !dist/ocr-models
       - name: Publish continuous build
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -60,10 +60,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release delete continuous --yes --cleanup-tag || true
-          gh release create continuous dist/hyper-pixel-* --prerelease --target "$GITHUB_SHA" \
-            --title "Continuous build" --notes "Latest build of main ($GITHUB_SHA). Download hyper-pixel-*, make it executable and run it."
+          gh release create continuous dist/hyperscan-* --prerelease --target "$GITHUB_SHA" \
+            --title "Continuous build" --notes "Latest build of main ($GITHUB_SHA). Download hyperscan-*, make it executable and run it."
       - name: Publish tagged release
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release create "$GITHUB_REF_NAME" dist/hyper-pixel-* --title "Hyper Pixel $GITHUB_REF_NAME" --generate-notes
+        run: gh release create "$GITHUB_REF_NAME" dist/hyperscan-* --title "HyperScan $GITHUB_REF_NAME" --generate-notes

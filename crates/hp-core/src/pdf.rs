@@ -63,7 +63,7 @@ pub fn write_pdf(pages: &[Page], title: &str) -> Vec<u8> {
         b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"
             .to_vec(),
     );
-    let mut info = b"<< /Producer (Hyper Pixel) /Title (".to_vec();
+    let mut info = b"<< /Producer (HyperScan) /Title (".to_vec();
     info.extend(escape_pdf_text(title));
     info.extend(b") >>");
     objects.push(info);

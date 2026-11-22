@@ -1,9 +1,9 @@
 //! Optical character recognition using the pure-Rust `ocrs` engine.
 //!
 //! Models (~12 MB) are looked up in, in order:
-//! 1. `$HYPER_PIXEL_MODELS`
-//! 2. `<exe dir>/../share/hyper-pixel/models`
-//! 3. `$XDG_DATA_HOME/hyper-pixel/models` (downloaded on demand)
+//! 1. `$HYPERSCAN_MODELS`
+//! 2. `<exe dir>/../share/hyperscan/models`
+//! 3. `$XDG_DATA_HOME/hyperscan/models` (downloaded on demand)
 //! 4. Embedded in the binary (release builds, see `build.rs`)
 
 use hp_core::pdf::TextWord;
@@ -37,20 +37,20 @@ fn has_models(dir: &Path) -> bool {
 pub fn user_model_dir() -> PathBuf {
     dirs::data_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join("hyper-pixel")
+        .join("hyperscan")
         .join("models")
 }
 
 /// Find a directory containing both models.
 pub fn find_models() -> Option<PathBuf> {
     let mut cands: Vec<PathBuf> = Vec::new();
-    if let Some(p) = std::env::var_os("HYPER_PIXEL_MODELS") {
+    if let Some(p) = std::env::var_os("HYPERSCAN_MODELS") {
         cands.push(p.into());
     }
     if let Ok(exe) = std::env::current_exe()
         && let Some(bin) = exe.parent()
     {
-        cands.push(bin.join("../share/hyper-pixel/models"));
+        cands.push(bin.join("../share/hyperscan/models"));
     }
     cands.push(user_model_dir());
     cands.into_iter().find(|d| has_models(d))

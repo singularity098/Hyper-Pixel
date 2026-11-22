@@ -7,7 +7,7 @@ members = ["crates/hp-core", "crates/hp-scan", "crates/hp-ocr", "crates/hp-ml", 
 version = "0.1.0"
 edition = "2024"
 license = "GPL-3.0-or-later"
-repository = "https://github.com/singularity098/Hyper-Pixel"
+repository = "https://github.com/singularity098/HyperScan"
 rust-version = "1.94"
 
 [workspace.dependencies]

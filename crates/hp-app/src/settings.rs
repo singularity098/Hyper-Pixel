@@ -1,4 +1,4 @@
-//! Persisted user settings (~/.config/hyper-pixel/settings.json).
+//! Persisted user settings (~/.config/hyperscan/settings.json).
 
 use hp_core::BackgroundHint;
 use hp_core::color::ColorPreset;
@@ -84,7 +84,7 @@ impl Default for Settings {
             whiten: true,
             doc_mode: DocColorMode::Color,
             ocr: true,
-            output_dir: pictures.join("Hyper Pixel"),
+            output_dir: pictures.join("HyperScan"),
             photo_format: ImageFormat::Jpeg,
             doc_format: ImageFormat::Pdf,
             jpeg_quality: 95,
@@ -98,11 +98,7 @@ impl Default for Settings {
 }
 
 fn path() -> Option<PathBuf> {
-    Some(
-        dirs::config_dir()?
-            .join("hyper-pixel")
-            .join("settings.json"),
-    )
+    Some(dirs::config_dir()?.join("hyperscan").join("settings.json"))
 }
 
 /// Default preview resolution.

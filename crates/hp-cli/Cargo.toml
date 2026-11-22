@@ -1,6 +1,6 @@
 [package]
 name = "hp-cli"
-description = "Hyper Pixel command line (split existing scans, restore, OCR, benchmarks), linked into the hyper-pixel binary"
+description = "HyperScan command line (split existing scans, restore, OCR, benchmarks), linked into the hyperscan binary"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

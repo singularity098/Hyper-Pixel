@@ -1,4 +1,4 @@
-// Hyper Pixel main window.
+// HyperScan main window.
 import { Button, ComboBox, Switch, LineEdit, ProgressIndicator, ScrollView, Slider, Spinner } from "std-widgets.slint";
 
 export struct CropBoxUi {
@@ -19,6 +19,8 @@ export struct ResultItem {
     path: string,
 }
 
+// Highlight colour: a reddish burnt orange. Keep `ACCENT` in main.rs in sync (it tints the
+// Fluent widgets: switches, sliders, focus rings).
 export global Theme {
     out property <color> bg: #121419;
     out property <color> panel: #191c23;
@@ -26,7 +28,7 @@ export global Theme {
     out property <color> line: #2a2f3a;
     out property <color> text: #e7e9ef;
     out property <color> muted: #8b92a3;
-    out property <color> accent: #5aa9ff;
+    out property <color> accent: #e2622f;
     out property <color> good: #3ddc97;
     out property <color> warn: #ffb347;
     out property <color> danger: #ff6b6b;
@@ -70,7 +72,7 @@ component BigButton inherits Rectangle {
     callback clicked;
     height: 44px;
     border-radius: 9px;
-    background: !root.enabled ? Theme.panel-2 : root.primary ? (ta.pressed ? #3f8ee6 : ta.has-hover ? #74b7ff : Theme.accent) : (ta.has-hover ? #2b303b : Theme.panel-2);
+    background: !root.enabled ? Theme.panel-2 : root.primary ? (ta.pressed ? #c24e21 : ta.has-hover ? #ec7c50 : Theme.accent) : (ta.has-hover ? #2b303b : Theme.panel-2);
     border-width: root.primary ? 0 : 1px;
     border-color: Theme.line;
     Text {
@@ -283,10 +285,10 @@ component Loupe inherits Rectangle {
 }
 
 export component MainWindow inherits Window {
-    title: "Hyper Pixel";
+    title: "HyperScan";
     // The app draws its own frame (title-bar buttons in the toolbar, drag areas, resize edges).
     no-frame: true;
-    icon: @image-url("../../../assets/hyper-pixel.png");
+    icon: @image-url("../../../assets/hyperscan.png");
     preferred-width: 1400px;
     preferred-height: 900px;
     min-width: 980px;
@@ -409,14 +411,14 @@ export component MainWindow inherits Window {
                     // The SVG is rasterised by Slint at the displayed size (and scale factor);
                     // shrinking the 512 px PNG this far aliased badly.
                     Image {
-                        source: @image-url("../../../assets/hyper-pixel.svg");
+                        source: @image-url("../../../assets/hyperscan.svg");
                         width: 68px;
                         height: 68px;
                         image-rendering: smooth;
                     }
                     VerticalLayout {
                         alignment: center;
-                        Text { text: "Hyper Pixel"; color: Theme.text; font-size: 20px; font-weight: 600; letter-spacing: -0.4px; }
+                        Text { text: "HyperScan"; color: Theme.text; font-size: 20px; font-weight: 600; letter-spacing: -0.4px; }
                         Text { text: "SCAN · SPLIT · RESTORE"; color: Theme.muted; font-size: 10px; letter-spacing: 1.6px; }
                     }
                 }
@@ -811,7 +813,7 @@ export component MainWindow inherits Window {
                     viewbox-height: canvas.ch;
                     stroke: b.selected ? Theme.accent : (b.weak ? Theme.warn : Theme.good);
                     stroke-width: b.selected ? 2.5px : 2px;
-                    fill: b.selected ? #5aa9ff26 : #3ddc9714;
+                    fill: b.selected ? #e2622f26 : #3ddc9714;
                     MoveTo { x: canvas.ox + b.x1 * canvas.scale; y: canvas.oy + b.y1 * canvas.scale; }
                     LineTo { x: canvas.ox + b.x2 * canvas.scale; y: canvas.oy + b.y2 * canvas.scale; }
                     LineTo { x: canvas.ox + b.x3 * canvas.scale; y: canvas.oy + b.y3 * canvas.scale; }

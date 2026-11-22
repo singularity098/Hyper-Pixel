@@ -131,7 +131,7 @@ fn backend_list(
         }
     }
     // Offer the demo scanners when there is nothing real, or when explicitly requested.
-    if list.is_empty() || std::env::var_os("HYPER_PIXEL_MOCK").is_some() {
+    if list.is_empty() || std::env::var_os("HYPERSCAN_MOCK").is_some() {
         list.extend(mock.list_devices().unwrap_or_default());
     }
     list
@@ -139,7 +139,7 @@ fn backend_list(
 
 fn run(rx: Receiver<Command>, cancel: Arc<AtomicBool>, emit: impl Fn(Event)) {
     let mut warn = None;
-    let mut sane: Option<Box<dyn Backend>> = if std::env::var_os("HYPER_PIXEL_MOCK").is_some() {
+    let mut sane: Option<Box<dyn Backend>> = if std::env::var_os("HYPERSCAN_MOCK").is_some() {
         None
     } else {
         match hp_scan::sane::SaneBackend::new() {

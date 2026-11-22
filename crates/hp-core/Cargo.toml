@@ -1,6 +1,6 @@
 [package]
 name = "hp-core"
-description = "Hyper Pixel image processing: photo detection, cropping, colour, documents, export"
+description = "HyperScan image processing: photo detection, cropping, colour, documents, export"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

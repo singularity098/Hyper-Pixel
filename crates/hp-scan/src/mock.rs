@@ -16,7 +16,7 @@ pub struct MockBackend {
 
 impl MockBackend {
     pub fn new() -> Self {
-        let seed = std::env::var("HYPER_PIXEL_MOCK_SEED")
+        let seed = std::env::var("HYPERSCAN_MOCK_SEED")
             .ok()
             .and_then(|s| s.parse().ok())
             .unwrap_or(7);
@@ -34,13 +34,13 @@ fn devices() -> Vec<DeviceInfo> {
     vec![
         DeviceInfo {
             name: "mock:photos".into(),
-            vendor: "Hyper Pixel".into(),
+            vendor: "HyperScan".into(),
             model: "Demo flatbed (photos)".into(),
             kind: "flatbed scanner".into(),
         },
         DeviceInfo {
             name: "mock:documents".into(),
-            vendor: "Hyper Pixel".into(),
+            vendor: "HyperScan".into(),
             model: "Demo document scanner".into(),
             kind: "sheetfed scanner".into(),
         },
