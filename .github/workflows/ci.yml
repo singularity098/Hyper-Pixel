@@ -48,12 +48,8 @@ jobs:
           sudo apt-get install -y libfontconfig-dev libxkbcommon-dev
       - name: Build binary
         run: ./packaging/build-release.sh
-      - uses: actions/upload-artifact@v4
-        with:
-          name: hyperscan
-          path: |
-            dist/HyperScan-*
-            !dist/ocr-models
+      # No upload-artifact step: GitHub always zips Actions artifacts, which would wrap the
+      # tar.gz in a zip. The release assets below are the downloads.
       - name: Publish continuous build
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:

@@ -174,7 +174,7 @@ ubuntu-24.04, glibc 2.39). `hyperscan install-desktop` writes a `.desktop` entry
 `packaging/hyperscan.desktop`, `Exec` set to the binary's path) and the SVG icon into
 `~/.local/share`. The `.github/workflows/ci.yml` workflow runs fmt, clippy, tests and the
 benchmarks, builds the binary, and publishes a `continuous` prerelease on every push to
-main. Tags `v*` create releases.
+main. It uploads no Actions artifact (GitHub always zips those, wrapping the tar.gz in a zip). Tags `v*` create releases.
 
 Icon: `assets/hyperscan.svg` is the source ("Midnight Flatbed": a dark flatbed on a dark
 rounded tile, lid raised, two prints on the glass, a red-orange laser line `#ff4520` near the front edge, matching the red end
