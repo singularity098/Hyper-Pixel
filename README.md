@@ -30,7 +30,7 @@ and saved as its own file.
 
 ## Install
 
-HyperScan is a single binary. Download `hyperscan-*-x86_64` from the
+HyperScan is a single binary. Download `HyperScan-*-linux-x86_64` from the
 [continuous release](https://github.com/singularity098/HyperScan/releases/tag/continuous),
 put it somewhere permanent (for example `~/.local/bin/hyperscan`), then:
 
@@ -75,7 +75,7 @@ hyperscan devices                                              # list scanners
 ```bash
 cargo build --release          # target/release/hyperscan (OCR models downloaded on first use)
 HYPERSCAN_MOCK=1 cargo run --release -p hp-app   # run with demo scanners, no hardware needed
-./packaging/build-release.sh   # dist/hyperscan-<version>-<arch>, OCR models embedded
+./packaging/build-release.sh   # dist/HyperScan-<version>-linux-<arch>, OCR models embedded
 ```
 
 ## License

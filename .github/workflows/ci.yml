@@ -52,7 +52,7 @@ jobs:
         with:
           name: hyperscan
           path: |
-            dist/hyperscan-*
+            dist/HyperScan-*
             !dist/ocr-models
       - name: Publish continuous build
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -60,10 +60,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release delete continuous --yes --cleanup-tag || true
-          gh release create continuous dist/hyperscan-* --prerelease --target "$GITHUB_SHA" \
-            --title "Continuous build" --notes "Latest build of main ($GITHUB_SHA). Download hyperscan-*, make it executable and run it."
+          gh release create continuous dist/HyperScan-* --prerelease --target "$GITHUB_SHA" \
+            --title "Continuous build" --notes "Latest build of main ($GITHUB_SHA). Download HyperScan-*-linux-x86_64, make it executable and run it."
       - name: Publish tagged release
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release create "$GITHUB_REF_NAME" dist/hyperscan-* --title "HyperScan $GITHUB_REF_NAME" --generate-notes
+        run: gh release create "$GITHUB_REF_NAME" dist/HyperScan-* --title "HyperScan $GITHUB_REF_NAME" --generate-notes

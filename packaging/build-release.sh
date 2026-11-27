@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build dist/hyperscan-<version>-<arch>: the whole app (GUI and command line) as one
+# Build dist/HyperScan-<version>-linux-<arch>: the whole app (GUI and command line) as one
 # binary, with the OCR models embedded.
 #
 # libsane is deliberately NOT bundled: the host's SANE library, drivers (backends) and
@@ -24,7 +24,7 @@ done
 
 HYPERSCAN_BUNDLE_OCR="$MODELS" cargo build --release --locked -p hp-app
 
-OUT="dist/hyperscan-${VERSION}-${ARCH}"
+OUT="dist/HyperScan-${VERSION}-linux-${ARCH}"
 install -m755 target/release/hyperscan "$OUT"
 (cd dist && sha256sum "$(basename "$OUT")" > "$(basename "$OUT").sha256")
 echo "Built $OUT"
