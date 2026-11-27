@@ -166,8 +166,8 @@ automatically when SANE finds no devices. For CI, SANE's `test` backend is enabl
 
 ## Packaging
 Distributed as **one binary** (owner's choice; no AppImage). `packaging/build-release.sh`
-builds `dist/HyperScan-<version>-linux-<arch>` (+ `.sha256`; release files are named
-`<App>-<version>-<platform>-<architecture>`) with the OCR models embedded via
+builds `dist/HyperScan-<version>-linux-<arch>.tar.gz` (+ `.sha256`; release files are named
+`<App>-<version>-<platform>-<architecture>`, and hold the binary as plain lowercase `hyperscan`) with the OCR models embedded via
 `HYPERSCAN_BUNDLE_OCR`. It must stay a dynamically linked glibc binary (libsane and the
 GL/windowing libraries are `dlopen`ed), so the build host's glibc is the minimum (CI:
 ubuntu-24.04, glibc 2.39). `hyperscan install-desktop` writes a `.desktop` entry (from
